@@ -1,3 +1,25 @@
+/*
+ * RedLeaf configuration manager 
+ *
+ * Copyright (C) 2006, 2007 RedLeaf devteam org.
+ *
+ * Written by Tirra (tirra.newly@gmail.com)
+ *  
+ * This program is free software; you can redistribute it and/or
+ * modify it under the terms of the GNU General Public License as
+ * published by the Free Software Foundation; either version 2, or (at
+ * your option) any later version.
+ * 
+ * This program is distributed in the hope that it will be useful, but
+ * WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
+ * General Public License for more details.
+ * 
+ * You should have received a copy of the GNU General Public License
+ * along with this program; if not, write to the Free Software
+ * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ */ 
+
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
@@ -16,11 +38,6 @@
 #define MAX_SECTIONS  5
 
 #define LINE_BUF  1024
-
-struct variable {
-  char *var;
-  char *value;
-};
 
 struct syn_tree {
   int order;
@@ -60,7 +77,6 @@ static int __synlen(const char **src);
 
 void init_defaults(void)
 {
-
   return;
 }
 
@@ -72,35 +88,51 @@ static int read_section(struct __conf_section *section,char *buf,int order);
 static int __scan_line_expr(char *buf,int n);
 static int read_syn_tree(char *buffer,int size);
 static int __synlen(const char **src);
+static struct variable *get_section_variables(const char *section,const char *name);
 
-char *get_configuration_value(const char *expr)
+char *get_general_value(const char *name)
 {
-  int c=0;
-  char *section,*argument,*var,*e=expr,*ee=expr;
-  /*parse the section name*/
-  while(*e!='(') {*e++;c++;}
-  section=strndup(ee,c); *e++;
-  if(*e!=')') {
-    ee=e;c=0;
-    while(*e!=')') {*e++;c++;}
-    argument=strndup(ee,c); *e++;
-  }
-  else {
-    argument=NULL;
-    *e++;ee=e;
+  struct syn_tree general;
+  int i=0;
+
+  while(i<=MAX_SECTIONS)
+    if(!strncmp((const char*)local_tree[i].name,"General",strlen("General"))){
+      general=local_tree[i];
+      break;
+    } else i++;
+  i=0;
+  while(general.vv[i].var){
+    if(!strcmp((const char*)general.vv[i].var,name))
+      return general.vv[i].value;
+    else i++;
   }
 
+  return NULL;
 }
 
+struct variable *get_module_variables(const char *module)
+{
+  return get_section_variables("Module",module);
+}
+
+struct variable *get_directory_variables(const char *directory)
+{
+  return get_section_variables("Directory",directory);
+}
+
+struct variable *get_virtualhost_variables(const char *virtualhost)
+{
+  return get_section_variables("VirtualHost",virtualhost);
+}
 
 void load_configuration(char *buffer,int size)
 {
 
   if(read_syn_tree(buffer,size)==-1) {
     fprintf(stderr,"Error reading config file, using defaults.\n");
-    __create_default_section();
+    //    __create_default_section();
   } else 
-    __check_local_tree_keywords();
+    //__check_local_tree_keywords();
 
   return;
 }
@@ -326,6 +358,19 @@ static int __is_section_head_valid(char *buf)
     return -1;
 
   return 0;
+}
+
+static struct variable *get_section_variables(const char *section,const char *name)
+{
+  int i=0;
+
+  while(i<=MAX_SECTIONS)
+    if(!strcmp((const char*)local_tree[i].name,section) && 
+       !strcmp((const char*)local_tree[i].argument,name))
+      return local_tree[i].vv;
+    else i++;
+
+  return NULL;
 }
 
 static int __scan_section_lines(char *buf)
