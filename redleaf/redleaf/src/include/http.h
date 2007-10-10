@@ -93,14 +93,29 @@
 /*date format*/
 #define RFC1123FMT  "%a, %d %b %Y %H:%M:%S GMT"
 
+/*TODO: add unsupported request*/
+typedef enum {
+  GET,
+  POST,
+} request_t;
+
+typedef enum {
+  CLOSED,
+  KEEP_ALIVE,
+} connection_t;
+
 /*structure used for http request*/
 struct http_request {
-  char *method; /*method of request*/
-  char *location; /*location*/
-  char *pver; /*protocol version*/
-  char **vars; /*variables list*/
-  char **values; /*values list*/
-  int vlist; /*number of variables*/
+  request_t method;
+  char *uri;
+  char *host;
+  char *user_agent;
+  char *accept;
+  char *accept_language;
+  char *accept_encoding;
+  char *accept_charset;
+  int keep_alive;
+  connection_t connection_type;
   int op_code; /*parse error if exist*/
 };
 
@@ -111,8 +126,20 @@ struct http_response {
   unsigned long content_lenght;
 };
 
+struct http_reply {
+  char *head;
+  char *fmtdate;
+  char *server;
+  char *content_type;
+  char *connection_type;
+  unsigned long content_length;
+  void *buf; /*contents of the reply*/
+};
+
 /*functions*/
 struct http_request *parse_http_request(char *msg);
 int process_request(struct http_request *r,int fd);
+
+void free_http_request(struct http_request *r);
 
 #endif /*__HTTP_H__*/
