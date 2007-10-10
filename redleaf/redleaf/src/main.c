@@ -42,10 +42,10 @@ int main(int argc, char **argv)
 	 h->pver);
   for(i=0;i<h->vlist;i++)
   printf("VAR(%s)=%s\n",h->vars[i],h->values[i]);*/
-  //  main_process(argc,argv);
-  int size;
+  main_process(argc,argv);
+  /*  int size;
   char *buf=(char*)mmap_file("/home/kaanoken/works/redleaf/src/example.conf",&size);
-  load_configuration(buf,size);
+  load_configuration(buf,size);*/
 
   return 0;
 }

@@ -31,7 +31,7 @@
 
 #include <http.h>
 
-#define PORT  80
+#define PORT  8080
 #define MAX_MSG  4096
 
 #define _DEBUG_  1
@@ -89,7 +89,7 @@ int get_cl_data(int fd)
     o=parse_http_request(buf);
     /*process the request*/
     process_request(o,fd);
-    free(o);
+    free_http_request(o);
     return 0;
   }
   return 0;
@@ -100,6 +100,8 @@ int main_process(int argc,char **argv)
   fd_set active_fd_set,read_fd_set;
   struct sockaddr_in claddr;
   int i,sock=cr_sock(PORT,"localhost");
+  int n;
+  socklen_t s=sizeof(struct sockaddr_in);
 
   if(sock==-1)
     exit(3);
@@ -120,13 +122,12 @@ int main_process(int argc,char **argv)
     for(i=0;i<FD_SETSIZE;i++) {
       if(FD_ISSET(i,&read_fd_set)) {
 	if(i==sock) {
-	  int n,s=sizeof(claddr);
 	  n=accept(sock,(struct sockaddr *)&claddr,&s);
 	  if(n<0) {
 	    perror("accept:");
 	    exit(3);
 	  }
-	  fprintf(stdout,"Connected from %s(%hd).\n",inet_ntoa(claddr.sin_addr,claddr.sin_port));
+	  //	  fprintf(stdout,"Connected from %s(%d).\n",inet_ntoa(claddr.sin_addr,claddr.sin_port));
 	  FD_SET(n,&active_fd_set);
 	} else { /*continuing*/
 	  if(get_cl_data(i)<0) {
