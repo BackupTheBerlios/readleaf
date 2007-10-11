@@ -26,14 +26,21 @@
 #include <unistd.h>
 #include <string.h>
 #include <time.h>
+#include <sys/types.h>
+#include <sys/mman.h>
+#include <sys/stat.h>
+#include <errno.h>
+#include <fcntl.h>
 
 #include <http.h>
+#include <misc.h>
 
 #define _DEBUG_  1
 
 /*functions prototypes*/
 void free_http_reply(struct http_reply *reply);
 static void init_http_request(struct http_request *p);
+static char *mime_type(char *path);
 
 /*TODO: exchange malloc/free/strdup/strndup to safe internal functions*/
 /*TODO: parse other variables from request*/
@@ -50,6 +57,7 @@ struct http_request *parse_http_request(char *msg)
     fprintf(stderr,"Enough memory for allocate the structure.\n");
     return NULL;
   }
+  init_http_request(p);
   if(!strncmp(msg,"GET",3))
     p->method=GET;
   else if(!strncmp(msg,"POST",4))
@@ -60,7 +68,6 @@ struct http_request *parse_http_request(char *msg)
     return p;
   }
   if((tmsg=strchr(msg,' ')) && (ttmsg=strchr(tmsg+1,' '))){
-    printf("ttmsg '%s'\n",ttmsg);
     *ttmsg='\0';
     p->uri=strdup(tmsg+sizeof(char));
     *ttmsg=' ';
@@ -104,38 +111,88 @@ struct http_reply *generate_reply(int operation_code)
 
 int write_http_reply(struct http_reply *r,int fd)
 {
-  char buf[512];
-  int wl=0;
+  char buf[512],cc;
+  int wl=0,mode=0;
+  int cd=-1;
+  struct stat ystat;
 
+  /*check the file is exist*/
+  cd=open(r->buf,O_RDONLY);
+  if(cd==-1){/*TODO: look for rfc if is it right*/
+    perror("open: ");
+    free(r->head);
+    if(errno==EACCES)
+      r->head=strdup("HTTP/1.1 403 Forbidden");
+    else 
+      r->head=strdup("HTTP/1.1 404 Not Found");
+    mode=3;
+  } else {
+    fstat(cd,&ystat);
+    if(S_ISREG(ystat.st_mode)){
+      mode=0;
+      r->content_length=ystat.st_size;
+    } else if(S_ISDIR(ystat.st_mode))
+      mode=1;
+    else {
+      free(r->head);
+      r->head=strdup("HTTP/1.1 403 Forbidden");
+      mode=3;
+    }
+  }
   memset(buf,'\0',512);
-  sprintf(buf,"%s\n%s\n%s\nContent-Length: %d\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-	  r->content_length,r->connection_type,r->content_type);
-  wl=write(fd,buf,strlen(buf));
-  wl+=write(fd,r->buf,r->content_length);
 
-  return 0;
+  if(mode==0){
+    sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+	    r->content_length,r->connection_type,r->content_type);
+    wl=write(fd,buf,strlen(buf));
+    while(read(cd,&cc,sizeof(char)))
+      wl+=write(fd,&cc,sizeof(char));
+  } else if(mode==1){
+    /*TODO: add directory listing*/
+    char *listing=malloc(sizeof(char)*4096);
+    free(r->connection_type);
+    r->connection_type=strdup("Connection-Type: text/html");
+    sprintf(listing,"<html><head><title>%s</title></head><body><hr>\n",r->buf);
+    free(listing);
+  } else {/*TODO: real output for errors*/
+    r->content_length=strlen("<html><head><title>Error</title></head><body><h1>Error Occured</h1></body></html>\n")+1;
+    sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+	    r->content_length,r->connection_type,r->content_type);
+    wl=write(fd,buf,strlen(buf));
+    sprintf(buf,"<html><head><title>Error</title></head><body><h1>Error Occured</h1></body></html>\n%c",
+	    EOF);
+    wl+=write(fd,buf,strlen(buf)+1);
+    return -1;
+  }
+
+  if(cd!=-1)
+    close(cd);
+
+  return wl;
 }
 
 /*TODO: add normal processing*/
 int process_request(struct http_request *r,int fd)
 {
-  struct http_reply *reply=generate_reply(200);
-  char *req=r->uri; *req++;
-  int i=0;
-  void *out;
+  struct http_reply *reply=generate_reply(r->op_code);
+  char *req=r->uri;
+  char *filepath=NULL;
 
   printf("r: %s\n",req);
-  out=mmap_file("/home/kaanoken/works/redleaf/cvs/redleaf/redleaf/src/404.html",&i);
-  if(!i)
-    return 0;
-  printf("len: %d\n",i);
-  reply->content_length=i;
-  reply->content_type=strdup("Content-Type: text/html");
-  reply->buf=out;
+  /*TODO: remake this for working with CM*/
+  filepath=getcwd(filepath,0);
+  filepath=realloc(filepath,strlen(filepath)+strlen(req)+sizeof(char));
+  filepath=strcat(filepath,req);
 
-  write_http_reply(reply,fd);
+  reply->content_length=0;
+  reply->content_type=strdup(strdup(mime_type(filepath)));
+  reply->buf=filepath;
 
-  munmap(out,i);
+  if(write_http_reply(reply,fd)==-1){
+    free_http_reply(reply);
+    return -1;
+  }
+
   free_http_reply(reply);
 
   return 0;
@@ -185,4 +242,63 @@ static void init_http_request(struct http_request *p)
   p->accept_charset=NULL;
 
   return;
+}
+
+static char *mime_type(char *path)
+{
+  char *d=NULL;
+  d=strrchr(path,'.');
+  if(!d)
+    return "Content-Type: text/plain";
+  else if(!strcasecmp(d,".html"))
+    return "Content-Type: text/html";
+  else if(!strcasecmp(d,".htm"))
+    return "Content-Type: text/html";
+  else if(!strcasecmp(d,".txt"))
+    return "Content-Type: text/plain";
+  else if(!strcasecmp(d,".text"))
+    return "Content-Type: text/plain";
+  else if(!strcasecmp(d,".aiff"))
+    return "audio/x-aiff";
+  else if(!strcasecmp(d,".au"))
+    return "audio/x-au";
+  else if(!strcasecmp(d,".gif"))
+    return "image/gif";
+  else if(!strcasecmp(d,".png"))
+    return "image/png";
+  else if(!strcasecmp(d,".bmp"))
+    return "image/bmp";
+  else if(!strcasecmp(d,".jpeg"))
+    return "image/jpeg";
+  else if(!strcasecmp(d,".jpg"))
+    return "image/jpeg";
+  else if(!strcasecmp(d,".tiff"))
+    return "image/tiff";
+  else if(!strcasecmp(d,".tif"))
+    return "image/tiff";
+  else if(!strcasecmp(d,".pnm"))
+    return "image/x-portable-anymap";
+  else if(!strcasecmp(d,".pbm"))
+    return "image/x-portable-bitmap";
+  else if(!strcasecmp(d,".pgm"))
+    return "image/x-portable-graymap";
+  else if(!strcasecmp(d,".ppm"))
+    return "image/x-portable-pixmap";
+  else if(!strcasecmp(d,".rgb"))
+    return "image/rgb";
+  else if(!strcasecmp(d,".xbm"))
+    return "image/x-bitmap";
+  else if(!strcasecmp(d,".xpm"))
+    return "image/x-pixmap";
+  else if(!strcasecmp(d,".mpeg"))
+    return "video/mpeg";
+  else if(!strcasecmp(d,".mpg"))
+    return "video/mpeg";
+  else if(!strcasecmp(d,".ps"))
+    return "application/ps";
+  else if(!strcasecmp(d,".eps"))
+    return "application/ps";
+  else if(!strcasecmp(d,".dvi"))
+    return "application/x-dvi";
+  return "text/plain";
 }
