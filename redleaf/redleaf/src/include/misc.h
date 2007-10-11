@@ -25,6 +25,9 @@
 
 /*TODO: add check*/
 void *mmap_file(const char *filename,int *size);
+void munmap_file(void *buf,int size);
+
+char *get_rfc1123date(time_t t);
 
 #endif
 

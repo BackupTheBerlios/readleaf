@@ -52,21 +52,26 @@ void *mmap_file(const char *filename,int *size)
   return out;
 }
 
-/*TODO: add unmap wrapper*/
+void munmap_file(void *buf,int size)
+{
+  if(!buf || !size)
+    return;
+  munmap(buf,size);
+  return;
+}
 
 char *get_rfc1123date(time_t t)
 {
-  struct tm *tm=malloc(sizeof(struct tm));
+  struct tm *tm;
   char *obuf=NULL;
 
   obuf=malloc(DATELEN);
-  tm=localtime_r(&t,tm);
+  tm=localtime(&t);
   if(!obuf)
     return NULL;
   sprintf(obuf, "%s, %02d %s %04d %02d:%02d:%02d GMT",wkday[tm->tm_wday],
 	  tm->tm_mday,month[tm->tm_mon],tm->tm_year+1900,tm->tm_hour,tm->tm_min,
 	  tm->tm_sec);
-  free(tm);  
 
   return obuf;
 }

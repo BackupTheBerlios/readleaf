@@ -24,6 +24,7 @@
 #include <stdio.h>
 #include <string.h>
 #include <ctype.h>
+#include <unistd.h>
 
 #include <conf.h>
 
@@ -60,7 +61,7 @@ typedef enum {
   _MODULE,
   _DIRECTORY,
   _VIRTUALHOST,
-};
+} module_t;
 
 static char *sections[]={"General","Module","Directory","VirtualHost"};
 static char *general_pairs[]={"hostname","port","root_directory","log_level","user","group"};
@@ -144,7 +145,7 @@ static int read_syn_tree(char *buffer,int size)
   int b_size=size;
   int ss=0,es=0,sl=0;
   struct __conf_section *cnf_section=NULL,*tsect;
-
+ 
   if(!buffer || !size) {
 #ifdef _DEBUG_
     fprintf(stderr,"Couldn't read context tree with invalid parameters.\nAborting.\n");
@@ -158,7 +159,7 @@ static int read_syn_tree(char *buffer,int size)
     return -1;
   }
   memset(buf,'\0',size);
-  printf("starting parsing ..1\n");
+
   /*preprocess*/
   while(b_size){
     if(*tbuf=='#')  /*skip this line - comment line*/
@@ -176,7 +177,6 @@ static int read_syn_tree(char *buffer,int size)
       *fbuf++;
     }
   }
-  printf("starting parsing ..2\n");
 
   if((ss-es)!=0) {
     fprintf(stderr,"Syntax error under '{|}'.\nAborting.\n");
@@ -264,7 +264,6 @@ static int __scan_line_expr(char *buf,int n)
 static int read_section(struct __conf_section *section,char *buf,int order)
 {
   struct __conf_section *t=section;
-  int size=0;
   char *Y=buf,T;
 
   while((*t).order!=-1)    *t++; 
@@ -287,7 +286,7 @@ static struct __conf_section __readwseek_section(char *buf,int order)
 {
   char *u=buf;
   //printf("buf: %s\n",buf);
-  char *section_name,*section_argument,section_data;
+  char *section_name,*section_argument;
   struct __conf_section sect;
 
   while(*u!='{')     *u++;
