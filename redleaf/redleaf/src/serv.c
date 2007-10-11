@@ -28,6 +28,8 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <signal.h>
+#include <unistd.h>
 
 #include <http.h>
 
@@ -35,6 +37,11 @@
 #define MAX_MSG  4096
 
 #define _DEBUG_  1
+
+int sock=-1;
+
+/*local functions prototypes*/
+static void sigint_handler(int signal_number);
 
 void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port)
 {
@@ -70,10 +77,19 @@ int cr_sock(uint16_t p,const char *host)
   return sk;
 }
 
+static int shutdown_socket(void)
+{
+  if(shutdown(sock,SHUT_RDWR)==-1){
+    perror("shutdown:");
+    return -1;
+  }
+  return 0;
+}
+
 int get_cl_data(int fd)
 {
   char buf[MAX_MSG];
-  int n;
+  int n,l;
   struct http_request *o;
 
   memset(buf,'\0',MAX_MSG);
@@ -88,10 +104,13 @@ int get_cl_data(int fd)
 #endif
     o=parse_http_request(buf);
     /*process the request*/
-    process_request(o,fd);
+    l=process_request(o,fd);
     free_http_request(o);
-    return 0;
+    if(l>0)
+      return 0;
+    else return -1;
   }
+
   return 0;
 }
 
@@ -99,16 +118,20 @@ int main_process(int argc,char **argv)
 {
   fd_set active_fd_set,read_fd_set;
   struct sockaddr_in claddr;
-  int i,sock=cr_sock(PORT,"localhost");
+  int i;
   int n;
   socklen_t s=sizeof(struct sockaddr_in);
 
+  sock=cr_sock(PORT,"localhost");
   if(sock==-1)
     exit(3);
   if(listen(sock,1)<0) {
     fprintf(stderr,"Error on socket listening.\n");
     exit(3);
   }
+
+  /*add signal handling*/
+  signal(SIGINT,sigint_handler);
 
   FD_ZERO(&active_fd_set);
   FD_SET(sock,&active_fd_set);
@@ -117,6 +140,7 @@ int main_process(int argc,char **argv)
     read_fd_set=active_fd_set;
     if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
       perror("select");
+      shutdown_socket();
       exit(3);
     }
     for(i=0;i<FD_SETSIZE;i++) {
@@ -125,6 +149,7 @@ int main_process(int argc,char **argv)
 	  n=accept(sock,(struct sockaddr *)&claddr,&s);
 	  if(n<0) {
 	    perror("accept:");
+	    shutdown_socket();
 	    exit(3);
 	  }
 	  //	  fprintf(stdout,"Connected from %s(%d).\n",inet_ntoa(claddr.sin_addr,claddr.sin_port));
@@ -143,4 +168,14 @@ int main_process(int argc,char **argv)
 
 
   return 0;
+}
+
+static void sigint_handler(int signal_number)
+{
+  fprintf(stdout,"Shutting down daemon ... \n");
+  fflush(stdout);
+  shutdown_socket();
+  exit(0);
+
+  return;
 }
