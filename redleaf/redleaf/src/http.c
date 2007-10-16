@@ -31,8 +31,10 @@
 #include <sys/stat.h>
 #include <errno.h>
 #include <fcntl.h>
+#include <dirent.h>
 
 #include <http.h>
+#include <http_read_dir.h>
 #include <misc.h>
 
 #define _DEBUG_  1
@@ -41,6 +43,9 @@
 void free_http_reply(struct http_reply *reply);
 static void init_http_request(struct http_request *p);
 static char *mime_type(char *path);
+static char *read_directory_entry(DIR *dir);
+static void free_ppchar(char **n,int size);
+static int qsort_cmp(const void *a, const void *b);
 
 /*TODO: exchange malloc/free/strdup/strndup to safe internal functions*/
 /*TODO: parse other variables from request*/
@@ -49,8 +54,8 @@ struct http_request *parse_http_request(char *msg)
   struct http_request *p=NULL;
   char *tmsg=msg,*ttmsg;
 
-  if(!msg) {
-    fprintf(stderr,"Request is NULL\n");
+  if(!msg || strlen(msg)<6) {
+    fprintf(stderr,"Request is NULL or empty\n");
     return NULL;
   }
   if(!(p=malloc(sizeof(struct http_request)))) {
@@ -96,7 +101,6 @@ struct http_reply *generate_reply(int operation_code)
   char *date=NULL;
   struct http_reply *reply=malloc(sizeof(struct http_reply));
 
-
   /*TODO: normal checking and filling*/
   reply->head=strdup("HTTP/1.1 200 OK");
   reply->server=strdup("Server: RedLeaf v0.1a");
@@ -112,8 +116,9 @@ struct http_reply *generate_reply(int operation_code)
 int write_http_reply(struct http_reply *r,int fd)
 {
   char buf[512],cc;
+  char html[1024];
   int wl=0,mode=0;
-  int cd=-1;
+  int cd=-1,opcode=OK;
   struct stat ystat;
 
   /*check the file is exist*/
@@ -121,12 +126,16 @@ int write_http_reply(struct http_reply *r,int fd)
   if(cd==-1){/*TODO: look for rfc if is it right*/
     perror("open: ");
     free(r->head);
-    if(errno==EACCES)
+    if(errno==EACCES){
       r->head=strdup("HTTP/1.1 403 Forbidden");
-    else 
+      opcode=FORBIDDEN;
+    } else { 
       r->head=strdup("HTTP/1.1 404 Not Found");
+      opcode=NOT_FOUND;
+    }
     mode=3;
   } else {
+    opcode=OK;
     fstat(cd,&ystat);
     if(S_ISREG(ystat.st_mode)){
       mode=0;
@@ -145,28 +154,43 @@ int write_http_reply(struct http_reply *r,int fd)
     sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
 	    r->content_length,r->connection_type,r->content_type);
     wl=write(fd,buf,strlen(buf));
+    /*TODO: better pipe->pipe transactions*/
     while(read(cd,&cc,sizeof(char)))
       wl+=write(fd,&cc,sizeof(char));
+    close(cd);
   } else if(mode==1){
-    /*TODO: add directory listing*/
-    char *listing=malloc(sizeof(char)*4096);
-    free(r->connection_type);
-    r->connection_type=strdup("Connection-Type: text/html");
-    sprintf(listing,"<html><head><title>%s</title></head><body><hr>\n",r->buf);
-    free(listing);
-  } else {/*TODO: real output for errors*/
-    r->content_length=strlen("<html><head><title>Error</title></head><body><h1>Error Occured</h1></body></html>\n")+1;
-    sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-	    r->content_length,r->connection_type,r->content_type);
-    wl=write(fd,buf,strlen(buf));
-    sprintf(buf,"<html><head><title>Error</title></head><body><h1>Error Occured</h1></body></html>\n%c",
-	    EOF);
-    wl+=write(fd,buf,strlen(buf)+1);
+    sprintf(buf,"<html><head><title>%s:</title></head><body>",r->uri);
+    wl+=write(fd,buf,strlen(buf));
+    sprintf(buf,"<h1>Directory %s:</h1><hr>",r->uri);
+    wl+=write(fd,buf,strlen(buf));
+    wl+=write_html_dir_list(fd,r->buf,r->uri);
+    sprintf(buf,"<hr>RedLeaf httpd v0.1a</body></html>");
+    wl+=write(fd,buf,strlen(buf));
+  } else {
+    switch(opcode) {
+    case FORBIDDEN:
+      memset(html,'\0',1024);
+      snprintf(html,1024,"<html><head><title>Forbidden</title></head> \
+	       <body><h1>Forbidden</h1><hr>RedLeaf v0.1a</body></html>\n");
+      r->content_length=strlen(html);
+      sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+	      r->content_length,r->connection_type,r->content_type);
+      wl=write(fd,buf,strlen(buf));
+      wl+=write(fd,html,strlen(html));
+      break;
+    case NOT_FOUND:
+      memset(html,'\0',1024);
+      snprintf(html,1024,"<html><head><title>Not Found</title></head>"
+	       "<body><h1>%s not found on this server</h1><hr>RedLeaf v0.1a</body></html>\n",r->uri);
+      r->content_length=strlen(html);
+      sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+	      r->content_length,r->connection_type,r->content_type);
+      wl=write(fd,buf,strlen(buf));
+      wl+=write(fd,html,strlen(html));
+      break;
+    }
     return -1;
   }
-
-  if(cd!=-1)
-    close(cd);
 
   return wl;
 }
@@ -187,6 +211,7 @@ int process_request(struct http_request *r,int fd)
   reply->content_length=0;
   reply->content_type=strdup(strdup(mime_type(filepath)));
   reply->buf=filepath;
+  reply->uri=strdup(req);
 
   if(write_http_reply(reply,fd)==-1){
     free_http_reply(reply);
@@ -212,6 +237,8 @@ void free_http_reply(struct http_reply *reply)
     free(reply->content_type);
   if(reply->connection_type)
     free(reply->connection_type);
+  if(reply->uri)
+    free(reply->uri);
   free(reply);
 
   return;
@@ -301,4 +328,31 @@ static char *mime_type(char *path)
   else if(!strcasecmp(d,".dvi"))
     return "application/x-dvi";
   return "text/plain";
+}
+
+static char *read_directory_entry(DIR *dir)
+{
+  struct dirent *ned;
+
+  if((ned=readdir(dir))){
+    printf("ned->d_name = %s\n",ned->d_name);
+    return ned->d_name;
+  }
+  else return NULL;
+}
+
+static void free_ppchar(char **n, int size)
+{
+  while(size!=0){
+    free(n[size]);
+    size--;
+  }
+  free(n);
+
+  return;
+}
+
+static int qsort_cmp(const void *a, const void *b) 
+{ 
+  return strcmp(*(char **)a, *(char **)b);
 }

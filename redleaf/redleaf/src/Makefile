@@ -1,9 +1,9 @@
 
 # makefile for redleaf sources
 
-SOURCES=http.c conf.c misc.c serv.c main.c
-CFLAGS=-Wall
-OBJS=http.o conf.o misc.o serv.o main.o
+SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c
+CFLAGS=-g -Wall
+OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o
 INCLUDES+=include/
 
 all: defaults

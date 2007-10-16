@@ -134,6 +134,7 @@ struct http_reply {
   char *connection_type;
   unsigned long content_length;
   void *buf; /*contents of the reply*/
+  char *uri;
 };
 
 /*functions*/
