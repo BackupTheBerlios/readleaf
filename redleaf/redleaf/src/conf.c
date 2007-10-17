@@ -132,9 +132,9 @@ void load_configuration(char *buffer,int size)
   if(read_syn_tree(buffer,size)==-1) {
     fprintf(stderr,"Error reading config file, using defaults.\n");
     //    __create_default_section();
-  } else 
+  } else {
     //__check_local_tree_keywords();
-
+  }
   return;
 }
 

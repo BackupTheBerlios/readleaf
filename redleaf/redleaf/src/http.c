@@ -54,15 +54,16 @@ struct http_request *parse_http_request(char *msg)
   struct http_request *p=NULL;
   char *tmsg=msg,*ttmsg;
 
-  if(!msg || strlen(msg)<6) {
-    fprintf(stderr,"Request is NULL or empty\n");
-    return NULL;
-  }
   if(!(p=malloc(sizeof(struct http_request)))) {
     fprintf(stderr,"Enough memory for allocate the structure.\n");
     return NULL;
   }
   init_http_request(p);
+
+  if(!msg || strlen(msg)<6) {
+    fprintf(stderr,"Request is NULL or empty\n");
+    goto bad_request;
+  }
   if(!strncmp(msg,"GET",3))
     p->method=GET;
   else if(!strncmp(msg,"POST",4))
@@ -96,7 +97,7 @@ char *print_rhead(int op_code)
   return o;
 }
 
-struct http_reply *generate_reply(int operation_code)
+struct http_reply *generate_reply(void)
 {
   char *date=NULL;
   struct http_reply *reply=malloc(sizeof(struct http_reply));
@@ -108,8 +109,10 @@ struct http_reply *generate_reply(int operation_code)
   date=get_rfc1123date(time(NULL));
   reply->fmtdate=malloc(32+strlen("Date: "));
   sprintf(reply->fmtdate,"Date: %s",date);
+  reply->content_type=NULL;
+  reply->uri=NULL;
   free(date);
-  
+
   return reply;
 }
 
@@ -122,8 +125,13 @@ int write_http_reply(struct http_reply *r,int fd)
   struct stat ystat;
 
   /*check the file is exist*/
-  cd=open(r->buf,O_RDONLY);
-  if(cd==-1){/*TODO: look for rfc if is it right*/
+  if(r->buf == NULL) {
+    free(r->head);
+    r->head=strdup("HTTP/1.1 400 Bad Request");
+    opcode=BAD_REQUEST;
+    mode=3;
+  }
+  else if(-1==(cd=open(r->buf,O_RDONLY))){/*TODO: look for rfc if is it right*/
     perror("open: ");
     free(r->head);
     if(errno==EACCES){
@@ -152,7 +160,7 @@ int write_http_reply(struct http_reply *r,int fd)
 
   if(mode==0){
     sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-	    r->content_length,r->connection_type,r->content_type);
+      r->content_length,r->connection_type,r->content_type);
     wl=write(fd,buf,strlen(buf));
     /*TODO: better pipe->pipe transactions*/
     while(read(cd,&cc,sizeof(char)))
@@ -168,26 +176,36 @@ int write_http_reply(struct http_reply *r,int fd)
     wl+=write(fd,buf,strlen(buf));
   } else {
     switch(opcode) {
-    case FORBIDDEN:
-      memset(html,'\0',1024);
-      snprintf(html,1024,"<html><head><title>Forbidden</title></head> \
-	       <body><h1>Forbidden</h1><hr>RedLeaf v0.1a</body></html>\n");
-      r->content_length=strlen(html);
-      sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-	      r->content_length,r->connection_type,r->content_type);
-      wl=write(fd,buf,strlen(buf));
-      wl+=write(fd,html,strlen(html));
-      break;
-    case NOT_FOUND:
-      memset(html,'\0',1024);
-      snprintf(html,1024,"<html><head><title>Not Found</title></head>"
-	       "<body><h1>%s not found on this server</h1><hr>RedLeaf v0.1a</body></html>\n",r->uri);
-      r->content_length=strlen(html);
-      sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-	      r->content_length,r->connection_type,r->content_type);
-      wl=write(fd,buf,strlen(buf));
-      wl+=write(fd,html,strlen(html));
-      break;
+      case BAD_REQUEST:
+        memset(html,'\0',1024);
+        snprintf(html,1024,"<html><head><title>Bad Request</title></head>"
+          "<body><h1>Bad Request</h1><hr>RedLeaf v0.1a</body></html>\n");
+        r->content_length=strlen(html);
+        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+          r->content_length,r->connection_type,r->content_type);
+        wl=write(fd,buf,strlen(buf));
+        wl+=write(fd,html,strlen(html));
+        break;
+      case FORBIDDEN:
+        memset(html,'\0',1024);
+        snprintf(html,1024,"<html><head><title>Forbidden</title></head> \
+          <body><h1>Forbidden</h1><hr>RedLeaf v0.1a</body></html>\n");
+        r->content_length=strlen(html);
+        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+        r->content_length,r->connection_type,r->content_type);
+        wl=write(fd,buf,strlen(buf));
+        wl+=write(fd,html,strlen(html));
+        break;
+      case NOT_FOUND:
+        memset(html,'\0',1024);
+        snprintf(html,1024,"<html><head><title>Not Found</title></head>"
+          "<body><h1>%s not found on this server</h1><hr>RedLeaf v0.1a</body></html>\n",r->uri);
+        r->content_length=strlen(html);
+        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
+          r->content_length,r->connection_type,r->content_type);
+        wl=write(fd,buf,strlen(buf));
+        wl+=write(fd,html,strlen(html));
+        break;
     }
     return -1;
   }
@@ -198,23 +216,26 @@ int write_http_reply(struct http_reply *r,int fd)
 /*TODO: add normal processing*/
 int process_request(struct http_request *r,int fd)
 {
-  struct http_reply *reply=generate_reply(r->op_code);
-  char *req=r->uri;
+  struct http_reply *reply=generate_reply();
+  char *req;
   char *filepath=NULL;
 
-  printf("r: %s\n",req);
-  /*TODO: remake this for working with CM*/
-  filepath=getcwd(filepath,0);
-  filepath=realloc(filepath,strlen(filepath)+strlen(req)+sizeof(char));
-  filepath=strcat(filepath,req);
+  if(r->op_code != BAD_REQUEST) {
+    req=r->uri;
+    printf("r: %s\n",req);
+    /*TODO: remake this for working with CM*/
+    filepath=getcwd(filepath,0);
+    filepath=realloc(filepath,strlen(filepath)+strlen(req)+sizeof(char));
+    filepath=strcat(filepath,req);
 
-  reply->content_length=0;
-  reply->content_type=strdup(strdup(mime_type(filepath)));
+    reply->content_length=0;
+    reply->content_type=strdup(mime_type(filepath));
+    reply->uri=strdup(req);
+  }
   reply->buf=filepath;
-  reply->uri=strdup(req);
 
   if(write_http_reply(reply,fd)==-1){
-    free_http_reply(reply);
+      free_http_reply(reply);
     return -1;
   }
 
@@ -239,6 +260,8 @@ void free_http_reply(struct http_reply *reply)
     free(reply->connection_type);
   if(reply->uri)
     free(reply->uri);
+  if(reply->buf)
+    free(reply->buf);
   free(reply);
 
   return;
@@ -267,6 +290,7 @@ static void init_http_request(struct http_request *p)
     return;
   p->uri=p->host=p->user_agent=p->accept=p->accept_language=p->accept_encoding=NULL;
   p->accept_charset=NULL;
+  p->op_code = OK;
 
   return;
 }

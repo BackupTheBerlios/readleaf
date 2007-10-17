@@ -68,7 +68,7 @@ int cr_sock(uint16_t p,const char *host)
     fprintf(stderr,"Error createting socket.\n");
     return -1;
   }
-  i_saddr(&s,host,80);
+  i_saddr(&s,host,PORT);
   if(bind(sk,(struct sockaddr *)&s,sizeof(s))<0) {
     perror("bind");
     fprintf(stderr,"Error on binding socket.\n");
@@ -103,6 +103,9 @@ int get_cl_data(int fd)
     fprintf(stdout,"SRV->MSG: \"%s\"\n",buf);
 #endif
     o=parse_http_request(buf);
+    if(o == NULL) {
+      return -1;
+    }
     /*process the request*/
     l=process_request(o,fd);
     free_http_request(o);
@@ -127,6 +130,7 @@ int main_process(int argc,char **argv)
     exit(3);
   if(listen(sock,1)<0) {
     fprintf(stderr,"Error on socket listening.\n");
+    shutdown_socket();
     exit(3);
   }
 
