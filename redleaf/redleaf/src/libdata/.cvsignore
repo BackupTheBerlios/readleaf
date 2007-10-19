@@ -1,0 +1,7 @@
+*~
+*.o
+*core
+redleafd
+semantic.cache
+*.tmp
+*.a
