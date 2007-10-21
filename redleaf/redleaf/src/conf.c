@@ -40,6 +40,8 @@
 
 #define LINE_BUF  1024
 
+#define __STRLEN(x) (((x) == NULL) ? 0 : strlen(x))
+
 struct syn_tree {
   int order;
   char *name;
@@ -145,7 +147,7 @@ static int read_syn_tree(char *buffer,int size)
   int b_size=size;
   int ss=0,es=0,sl=0;
   struct __conf_section *cnf_section=NULL,*tsect;
- 
+
   if(!buffer || !size) {
 #ifdef _DEBUG_
     fprintf(stderr,"Couldn't read context tree with invalid parameters.\nAborting.\n");
@@ -164,10 +166,10 @@ static int read_syn_tree(char *buffer,int size)
   while(b_size){
     if(*tbuf=='#')  /*skip this line - comment line*/
       while(*tbuf!='\n' || b_size<=0){
-	*tbuf++;b_size--;
+        *tbuf++;b_size--;
       }
     else if(*tbuf=='\n') { /*override*/
-	*tbuf++;b_size--;
+      *tbuf++;b_size--;
     } else if(isblank(*tbuf)) { /*remove blanks*/
       *tbuf++;b_size--;
     } else {
@@ -193,15 +195,16 @@ static int read_syn_tree(char *buffer,int size)
   cnf_section=malloc(sizeof(struct __conf_section)*ss);
   (*cnf_section).order=-1;
   printf("starting parsing ..3\n");
-
+  printf("\'%s\'\n", fbuf);
   while(ss!=0) {
+    printf("ss=%i..\n", ss);
     if(read_section(cnf_section,fbuf,es)!=0) {
       fprintf(stderr,"error: reading section (%d).\n",es);
       free(buf);
       return -1;
     } 
-    fbuf+=sizeof(char)*(strlen(cnf_section[es].name)+strlen(cnf_section[es].arg)+strlen("{}()")+
-			strlen(cnf_section[es].data));
+    fbuf+=sizeof(char)*(strlen(cnf_section[es].name)+strlen("{}()")+
+        __STRLEN(cnf_section[es].arg)+__STRLEN(cnf_section[es].data));
     ss--;es++;
   }
   free(buf);
@@ -223,25 +226,25 @@ static int read_syn_tree(char *buffer,int size)
       sl=__scan_section_lines((*tsect).data);
       local_tree[ss].vv=NULL;
       if(__scan_line_expr((*tsect).data,sl)!=0)
-	fprintf(stderr,"error: section has an error in expressions.\n");
+        fprintf(stderr,"error: section has an error in expressions.\n");
       else {
-	local_tree[ss].vv=malloc(sizeof(struct variable)*(sl+1));
-	while(sl!=0){
-	  expr=uui;
-	  while(*uui!='=') *uui++;
-	  *uui='\0';
-	  local_tree[ss].vv[i].var=strdup(expr);
-	  printf("var=%s\n",expr);
-	  *uui++;expr=uui;
-	  while(*uui!=';') *uui++;
-	  *uui='\0';
-	  local_tree[ss].vv[i].value=strdup(expr);
-	  printf("value=%s\n",expr);
-	  *uui++;
-	  i++;sl--;
-	}
-	local_tree[ss].vv[++i].var=NULL;
-	free((*tsect).data);
+        local_tree[ss].vv=malloc(sizeof(struct variable)*(sl+1));
+        while(sl!=0){
+          expr=uui;
+          while(*uui!='=') *uui++;
+          *uui='\0';
+          local_tree[ss].vv[i].var=strdup(expr);
+          printf("var=%s\n",expr);
+          *uui++;expr=uui;
+          while(*uui!=';') *uui++;
+          *uui='\0';
+          local_tree[ss].vv[i].value=strdup(expr);
+          printf("value=%s\n",expr);
+          *uui++;
+          i++;sl--;
+        }
+        local_tree[ss].vv[++i].var=NULL;
+        free((*tsect).data);
       }
     }
 
@@ -270,7 +273,7 @@ static int read_section(struct __conf_section *section,char *buf,int order)
 
   while(*Y!='}') *Y++;
   *Y++;T=*Y;*Y='\0';
-    
+
   *t=__readwseek_section(buf,order);
   *Y=T;
   buf=Y;
@@ -299,24 +302,25 @@ static struct __conf_section __readwseek_section(char *buf,int order)
   } 
   *u='{';u=buf;
   switch(__is_section_head_valid(buf)) {
-  case 0:
-    while(*buf!='(') *buf++;
-    *buf='\0';
-    section_name=strdup(u); *buf='('; *buf++;
-    if(*buf==')') section_argument=NULL;
-    else {
-      u=buf;
-      while(*buf!=')') *buf++;
+    case 0:
+      while(*buf!='(') *buf++;
       *buf='\0';
-      section_argument=strdup(u);
-      *buf=')';*buf++;
-    }
-    break;
-  case -1:
-    fprintf(stderr,"error: section defining is not valid.\n");
-    sect.order=-2;
-    return sect;
-    break;
+      section_name=strdup(u); *buf='('; *buf++;
+      if(*buf==')') section_argument=NULL;
+      else {
+        u=buf;
+        while(*buf!=')') *buf++;
+        *buf='\0';
+        section_argument=strdup(u);
+        *buf=')';
+      }
+      *buf++;
+      break;
+    case -1:
+      fprintf(stderr,"error: section defining is not valid.\n");
+      sect.order=-2;
+      return sect;
+      break;
   }
   *buf++;
   if(!__scan_section_lines(buf)){
@@ -365,7 +369,7 @@ static struct variable *get_section_variables(const char *section,const char *na
 
   while(i<=MAX_SECTIONS)
     if(!strcmp((const char*)local_tree[i].name,section) && 
-       !strcmp((const char*)local_tree[i].argument,name))
+      !strcmp((const char*)local_tree[i].argument,name))
       return local_tree[i].vv;
     else i++;
 
@@ -389,6 +393,6 @@ static int __synlen(const char **src)
   int i=0;
 
   while(src[i])    i++;
-  
+
   return i;
 }
