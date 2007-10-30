@@ -36,7 +36,8 @@
 #define PORT  8080
 #define MAX_MSG  4096
 
-#define _DEBUG_  1
+#define _DEBUG_  0
+#undef _DEBUG_
 
 int sock=-1;
 

@@ -27,17 +27,28 @@
 struct page_t {
   char *uri; /*url of the page*/
   char *head; /*header of the reply*/
-  char *body; /*body of the message*/
+  void *body; /*body of the message*/
   char *filename; /*filename, maybe NULL if content of file is cached*/
 
+  unsigned long bodysize; /*length of the body*/
+
   time_t last_modify; /*last change of the page*/
-  time_t last_stat; /*last stat() for file*/
+  time_t last_stat; /*last modify for file*/
   time_t last_access; /*last access to the page*/
 
-  int op; /*0 if the cached request, 
-	   * 1 if the cached request with file
-	   * error if it's the system message
+  int op; /* 1 if the file cached with content 
+	   * 2 if the file cached without content
+	   * 3 if the file is directory
+	   * http error - if it's a error
 	   */
 };
+
+/*initial functions for page_t*/
+struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int op);
+void free_page_t(struct page_t *page);
+/*cache functions - tree lookup and insert/deletion part*/
+int init_page_t_cache(void);
+int insert_cache(struct page_t *page);
+struct page_t *lookup_cache(char *uri);
 
 #endif /*__PAGE_H__*/

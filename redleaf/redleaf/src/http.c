@@ -36,16 +36,26 @@
 #include <http.h>
 #include <http_read_dir.h>
 #include <misc.h>
+#include <page.h>
 
 #define _DEBUG_  1
 
+/*page macros*/
+#define NOTFOUND_PAGE  "<html><head><title>NOT FOUND on this server.</title></head> \
+<body><h1>Requested document not found.</h1><hr>%s not found.<hr>RedLeaf v0.1a</body></html>"
+#define FORBIDDEN_PAGE  "<html><head><title>FORBIDDEN.</title></head> \
+<body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.1a</body></html>"
+
 /*functions prototypes*/
 void free_http_reply(struct http_reply *reply);
+
+/*local functions prototypes*/
 static void init_http_request(struct http_request *p);
 static char *mime_type(char *path);
-static char *read_directory_entry(DIR *dir);
-static void free_ppchar(char **n,int size);
-static int qsort_cmp(const void *a, const void *b);
+static char *generate_reply_head(char *uri,char *filepath,int *op);
+static void quick_exchange_errorpage(struct page_t *page,int op);
+static void quick_exchange_filepage(struct page_t *page,struct stat ystat);
+static int send_page_t(struct page_t *page,int fd);
 
 /*TODO: exchange malloc/free/strdup/strndup to safe internal functions*/
 /*TODO: parse other variables from request*/
@@ -84,84 +94,9 @@ struct http_request *parse_http_request(char *msg)
   return p;
 }
 
-char *print_rhead(int op_code)
-{
-  char *o=NULL;
-  int hl=strlen((const char *)"HTTP/1.1 200 OK\n")+1;
-  if(!op_code)
-    return NULL;
-  o=malloc(hl);
-  if(!o)
-    return NULL;
-  snprintf(o,hl,"HTTP/1.1 200 OK\n");
-  return o;
-}
-
-struct http_reply *generate_reply(void)
-{
-  char *date=NULL;
-  struct http_reply *reply=malloc(sizeof(struct http_reply));
-
-  /*TODO: normal checking and filling*/
-  reply->head=strdup("HTTP/1.1 200 OK");
-  reply->server=strdup("Server: RedLeaf v0.1a");
-  reply->connection_type=strdup("Connection: closed");
-  date=get_rfc1123date(time(NULL));
-  reply->fmtdate=malloc(32+strlen("Date: "));
-  sprintf(reply->fmtdate,"Date: %s",date);
-  reply->content_type=NULL;
-  reply->uri=NULL;
-  free(date);
-
-  return reply;
-}
-
 int write_http_reply(struct http_reply *r,int fd)
 {
-  char buf[512],cc;
-  char html[1024];
-  int wl=0,mode=0;
-  int cd=-1,opcode=OK;
-  struct stat ystat;
-
-  /*check the file is exist*/
-  if(r->buf == NULL) {
-    free(r->head);
-    r->head=strdup("HTTP/1.1 400 Bad Request");
-    opcode=BAD_REQUEST;
-    mode=3;
-  }
-  else if(-1==(cd=open(r->buf,O_RDONLY))){/*TODO: look for rfc if is it right*/
-    perror("open: ");
-    free(r->head);
-    if(errno==EACCES){
-      r->head=strdup("HTTP/1.1 403 Forbidden");
-      opcode=FORBIDDEN;
-    } else { 
-      r->head=strdup("HTTP/1.1 404 Not Found");
-      opcode=NOT_FOUND;
-    }
-    mode=3;
-  } else {
-    opcode=OK;
-    fstat(cd,&ystat);
-    if(S_ISREG(ystat.st_mode)){
-      mode=0;
-      r->content_length=ystat.st_size;
-    } else if(S_ISDIR(ystat.st_mode))
-      mode=1;
-    else {
-      free(r->head);
-      r->head=strdup("HTTP/1.1 403 Forbidden");
-      mode=3;
-    }
-  }
-  memset(buf,'\0',512);
-
-  if(mode==0){
-    sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-      r->content_length,r->connection_type,r->content_type);
-    wl=write(fd,buf,strlen(buf));
+#if 0
     /*TODO: better pipe->pipe transactions*/
     while(read(cd,&cc,sizeof(char)))
       wl+=write(fd,&cc,sizeof(char));
@@ -174,40 +109,63 @@ int write_http_reply(struct http_reply *r,int fd)
     wl+=write_html_dir_list(fd,r->buf,r->uri);
     sprintf(buf,"<hr>RedLeaf httpd v0.1a</body></html>");
     wl+=write(fd,buf,strlen(buf));
-  } else {
-    switch(opcode) {
-      case BAD_REQUEST:
-        memset(html,'\0',1024);
-        snprintf(html,1024,"<html><head><title>Bad Request</title></head>"
-          "<body><h1>Bad Request</h1><hr>RedLeaf v0.1a</body></html>\n");
-        r->content_length=strlen(html);
-        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-          r->content_length,r->connection_type,r->content_type);
-        wl=write(fd,buf,strlen(buf));
-        wl+=write(fd,html,strlen(html));
-        break;
-      case FORBIDDEN:
-        memset(html,'\0',1024);
-        snprintf(html,1024,"<html><head><title>Forbidden</title></head> \
-          <body><h1>Forbidden</h1><hr>RedLeaf v0.1a</body></html>\n");
-        r->content_length=strlen(html);
-        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-        r->content_length,r->connection_type,r->content_type);
-        wl=write(fd,buf,strlen(buf));
-        wl+=write(fd,html,strlen(html));
-        break;
-      case NOT_FOUND:
-        memset(html,'\0',1024);
-        snprintf(html,1024,"<html><head><title>Not Found</title></head>"
-          "<body><h1>%s not found on this server</h1><hr>RedLeaf v0.1a</body></html>\n",r->uri);
-        r->content_length=strlen(html);
-        sprintf(buf,"%s\n%s\n%s\nContent-Length: %ld\n%s\n%s\n\n",r->head,r->fmtdate,r->server,
-          r->content_length,r->connection_type,r->content_type);
-        wl=write(fd,buf,strlen(buf));
-        wl+=write(fd,html,strlen(html));
-        break;
-    }
     return -1;
+  }
+
+  return wl;
+#endif
+return 0;
+}
+
+static int send_dir_content(const char *path,const char *uri,int fd)
+{
+  char buf[512];
+  int wl;
+
+  /*TODO: remake this one*/
+  sprintf(buf,"<html><head><title>%s:</title></head><body>",uri);
+  wl+=write(fd,buf,strlen(buf));
+  sprintf(buf,"<h1>Directory %s:</h1><hr>",uri);
+  wl+=write(fd,buf,strlen(buf));
+  wl+=write_html_dir_list(fd,path,uri);
+  sprintf(buf,"<hr>RedLeaf httpd v0.1a</body></html>");
+  wl+=write(fd,buf,strlen(buf));
+
+  return wl;
+}
+
+static int send_file_content(const char *path,int fd)
+{
+  /*TODO: better pipe->pipe transactions*/
+
+  char cc;
+  int cd,wl;
+
+  cd=open(path,O_RDONLY);
+  while(read(cd,&cc,sizeof(char)))
+    wl+=write(fd,&cc,sizeof(char));
+  close(cd);
+
+
+  return wl;
+}
+
+static int send_page_t(struct page_t *page,int fd)
+{
+  int wl=0;
+
+  wl+=write(fd,page->head,strlen((const char*)page->head));
+
+  switch(page->op) {
+  case 2:
+    wl+=send_file_content(page->filename,fd);
+    break;
+  case 3:
+    wl+=send_dir_content(page->filename,page->uri,fd);
+    break;
+  default: /*simply output*/
+    wl+=write(fd,page->body,page->bodysize);
+    break;
   }
 
   return wl;
@@ -216,30 +174,91 @@ int write_http_reply(struct http_reply *r,int fd)
 /*TODO: add normal processing*/
 int process_request(struct http_request *r,int fd)
 {
-  struct http_reply *reply=generate_reply();
+  struct page_t *page=NULL;
   char *req;
   char *filepath=NULL;
+  char *head=NULL;
+  struct stat ystat;
+  int op,ffd,bl;
 
   if(r->op_code != BAD_REQUEST) {
     req=r->uri;
-    printf("r: %s\n",req);
-    /*TODO: remake this for working with CM*/
-    filepath=getcwd(filepath,0);
-    filepath=realloc(filepath,strlen(filepath)+strlen(req)+sizeof(char));
-    filepath=strcat(filepath,req);
+    page=lookup_cache(req);
+    if(page) {
+      /*quick check*/
+      stat(page->filename,&ystat);
 
-    reply->content_length=0;
-    reply->content_type=strdup(mime_type(filepath));
-    reply->uri=strdup(req);
+      if(errno==EACCES)
+	op=FORBIDDEN;
+      else if(errno==ENOENT)
+	op=NOT_FOUND;
+      else
+	op=OK;
+
+      if(page->op>200) {
+
+	if(op!=page->op) 
+	  quick_exchange_errorpage(page,op);
+	else 
+	  page->last_access=time(NULL);
+      } else {
+	switch(page->op) {
+	case 1:
+	case 2:
+	  if(page->last_stat!=ystat.st_mtime && op==OK) { /*fucking deal - file changed*/
+	    quick_exchange_filepage(page,ystat);
+	    page->last_stat=ystat.st_mtime;
+	  } else if(op!=OK) 
+	    quick_exchange_errorpage(page,op);
+	  break;
+	case 3:
+	  if(op!=OK) /*directory doesn't exist*/
+	    quick_exchange_errorpage(page,op);
+	  break;
+	}
+
+	page->last_access=time(NULL);
+      }
+      
+    } else { /*generate struct page_t for non-cached request*/
+      req=strdup(r->uri); /*uri*/
+      /*TODO: remake this for working with CM*/
+      filepath=getcwd(filepath,0); /*determine filepath*/
+      filepath=realloc(filepath,strlen(filepath)+strlen(req)+sizeof(char));
+      filepath=strcat(filepath,req);
+      head=generate_reply_head(req,filepath,&op); /*fill head*/
+
+      page=create_page_t(req,head,NULL,filepath,op);
+      if(op<200) {
+	stat(filepath,&ystat);
+	page->last_stat=ystat.st_mtime;
+	if(op==1){
+	  ffd=open(page->filename,O_RDONLY);
+	  page->body=malloc(ystat.st_size);
+	  read(ffd,page->body,ystat.st_size);
+	  close(ffd);
+	  page->bodysize=ystat.st_size;
+	} else if(op==2) {
+	  page->body=NULL;
+	  page->bodysize=ystat.st_size;
+	} else 
+	  page->body=NULL;
+      } else if(op==NOT_FOUND) {
+	bl=sizeof(char)*(strlen(NOTFOUND_PAGE)+strlen(page->uri)+1);
+	page->body=malloc(bl);
+	snprintf(page->body,bl,NOTFOUND_PAGE,page->uri);
+      } else if(op==FORBIDDEN){
+	bl=sizeof(char)*(strlen(FORBIDDEN_PAGE)+strlen(page->uri)+1);
+	page->body=malloc(bl);
+	snprintf(page->body,bl,FORBIDDEN_PAGE,page->uri);
+      }
+
+      insert_cache(page);
+    }
   }
-  reply->buf=filepath;
 
-  if(write_http_reply(reply,fd)==-1){
-      free_http_reply(reply);
+  if(send_page_t(page,fd)==-1)
     return -1;
-  }
-
-  free_http_reply(reply);
 
   return 0;
 }
@@ -300,15 +319,15 @@ static char *mime_type(char *path)
   char *d=NULL;
   d=strrchr(path,'.');
   if(!d)
-    return "Content-Type: text/plain";
+    return "text/plain";
   else if(!strcasecmp(d,".html"))
-    return "Content-Type: text/html";
+    return "text/html";
   else if(!strcasecmp(d,".htm"))
-    return "Content-Type: text/html";
+    return "text/html";
   else if(!strcasecmp(d,".txt"))
-    return "Content-Type: text/plain";
+    return "text/plain";
   else if(!strcasecmp(d,".text"))
-    return "Content-Type: text/plain";
+    return "text/plain";
   else if(!strcasecmp(d,".aiff"))
     return "audio/x-aiff";
   else if(!strcasecmp(d,".au"))
@@ -354,29 +373,143 @@ static char *mime_type(char *path)
   return "text/plain";
 }
 
-static char *read_directory_entry(DIR *dir)
+static char *generate_reply_head(char *uri,char *filepath,int *op)
 {
-  struct dirent *ned;
+  char *head=NULL;
+  struct stat ystat;
+  /*TODO: size determining*/
+  int fd,hl=sizeof(char)*(512+strlen((const char*)uri)+sizeof(unsigned long));
+  int mode=0;
+  unsigned long filesize=0;
+  char *date;
 
-  if((ned=readdir(dir))){
-    printf("ned->d_name = %s\n",ned->d_name);
-    return ned->d_name;
+  head=malloc(hl);
+  if(head==NULL)
+    return NULL;
+  /*
+   * 1 - check for errors
+   * 2 - determine dir or not
+   * 3 - if dir use http_read_dir
+   *     not determine the file type, size and decide how it will be located
+   * 4 - finish misc things
+   */
+  if((fd=open(filepath,O_RDONLY))==-1) { /*error, check for type of error*/
+    switch(errno) {
+    case EACCES:
+      mode=FORBIDDEN;
+      break;
+    default:
+      mode=NOT_FOUND;
+      break;
+    }
+    *op=mode;
+  } else { /*dir or not (to) dir ;-)*/
+    mode=OK;
+    fstat(fd,&ystat);
+    if(S_ISREG(ystat.st_mode)) {
+      filesize=ystat.st_size;
+      if(filesize<4096)
+	*op=1;
+      else
+	*op=2;
+    } else if(S_ISDIR(ystat.st_mode)) {
+      *op=3; /*mark that it's dir*/
+    }
   }
-  else return NULL;
+
+  date=get_rfc1123date(time(NULL));
+
+  switch(*op) {
+  case FORBIDDEN:
+    snprintf(head,hl,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: %s\n\
+Connection-type: closed\nContent-type: text/html\n\n",date,(const char *)"RedLeaf v0.1a");
+    break;
+  case NOT_FOUND:
+    snprintf(head,hl,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\n\
+Connection-type: closed\nContent-type: text/html\n\n",date,(const char *)"RedLeaf v0.1a");
+    break;
+  case 1:
+  case 2:
+    snprintf(head,hl,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\n\
+Content-Length:%ld\nConnection-type: closed\nContent-type: %s\n\n",date,(const char *)"RedLeaf v0.1a",
+	     filesize,mime_type(uri));
+    break;
+  case 3:
+    snprintf(head,hl,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\n\
+Connection-type: closed\nContent-type: text/html\n\n",date,(const char *)"RedLeaf v0.1a");
+    break;
+  }
+
+  free(date);
+
+  return head;
 }
 
-static void free_ppchar(char **n, int size)
+static void quick_exchange_errorpage(struct page_t *page,int op)
 {
-  while(size!=0){
-    free(n[size]);
-    size--;
+  int hl=sizeof(char)*(512+strlen((const char*)page->uri)+sizeof(unsigned long));
+  int bl;
+  char *date=get_rfc1123date(page->last_access);
+
+  if(page->body)
+    free(page->body);
+
+  switch(op) {
+  case NOT_FOUND:
+    snprintf(page->head,hl,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\n \
+Connection-type: closed\nContent-type: text/html\n\n",date,
+	     (const char *)"RedLeaf v0.1a");
+    bl=sizeof(char)*(strlen(NOTFOUND_PAGE)+strlen(page->uri)+1);
+    snprintf(page->body,bl,NOTFOUND_PAGE,page->uri);
+    break;
+  case FORBIDDEN:
+    snprintf(page->head,hl,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: %s\n \
+Connection-type: closed\nContent-type: text/html\n\n",date,
+	     (const char *)"RedLeaf v0.1a");
+    bl=sizeof(char)*(strlen(FORBIDDEN_PAGE)+strlen(page->uri)+1);
+    snprintf(page->body,bl,FORBIDDEN_PAGE,page->uri);
+    break;
   }
-  free(n);
+
+  page->op=op;
+
+  free(date);
 
   return;
 }
 
-static int qsort_cmp(const void *a, const void *b) 
-{ 
-  return strcmp(*(char **)a, *(char **)b);
+static void quick_exchange_filepage(struct page_t *page,struct stat ystat)
+{
+  int fd;
+  int hl=sizeof(char)*(512+strlen((const char*)page->uri)+sizeof(unsigned long));
+  char *date=NULL;
+
+  if(page->body)
+    free(page->body);
+
+  page->bodysize=ystat.st_size;
+
+  /*change content if needed*/
+  if(page->bodysize>4096) {
+    page->body=NULL;
+    page->op=2;
+  }
+  else {
+    fd=open(page->filename,O_RDONLY);
+    page->body=malloc(page->bodysize);
+    read(fd,(void *)page->body,page->bodysize);
+    close(fd);
+    page->op=1;
+  }
+
+  /*change the head*/
+  date=get_rfc1123date(ystat.st_mtime);
+  snprintf(page->head,hl,"HTTP/1.1 200 OK\nDate: %s\nServer: %s\n \
+Content-Length:%ld\nConnection-type: closed\nContent-type: %s\n\n",date,(const char *)"RedLeaf v0.1a",
+	   page->bodysize,mime_type(page->uri));
+
+  free(date);
+
+  return;
 }
+

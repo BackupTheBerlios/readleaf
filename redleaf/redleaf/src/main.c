@@ -28,6 +28,7 @@
 #include <http.h>
 #include <serv.h>
 #include <conf.h>
+#include <page.h>
 
 int main(int argc, char **argv)
 {
@@ -42,6 +43,7 @@ int main(int argc, char **argv)
 	 h->pver);
   for(i=0;i<h->vlist;i++)
   printf("VAR(%s)=%s\n",h->vars[i],h->values[i]);*/
+  init_page_t_cache();
   main_process(argc,argv);
   /*  int size;
   char *buf=(char*)mmap_file("/home/kaanoken/works/redleaf/src/example.conf",&size);
