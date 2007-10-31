@@ -134,18 +134,26 @@ static int send_dir_content(const char *path,const char *uri,int fd)
   return wl;
 }
 
-static int send_file_content(const char *path,int fd)
+static int send_file_content(const char *path,unsigned long filesize,int fd)
 {
-  /*TODO: better pipe->pipe transactions*/
+  int ffd,wl;
+  char buf[4096];
+  unsigned long ch=filesize/4096;
+  unsigned long lch=filesize%4096;
 
-  char cc;
-  int cd,wl;
+  ffd=open(path,O_RDONLY);
 
-  cd=open(path,O_RDONLY);
-  while(read(cd,&cc,sizeof(char)))
-    wl+=write(fd,&cc,sizeof(char));
-  close(cd);
+  while(ch!=0) {
+    read(ffd,buf,4096);
+    wl+=write(fd,buf,4096);
+    ch--;
+  }
+  if(lch!=0){
+    read(ffd,buf,lch);
+    wl+=write(fd,buf,lch);
+  }
 
+  close(ffd);
 
   return wl;
 }
@@ -154,11 +162,14 @@ static int send_page_t(struct page_t *page,int fd)
 {
   int wl=0;
 
+  if(!page)
+    return -1;
+
   wl+=write(fd,page->head,strlen((const char*)page->head));
 
   switch(page->op) {
   case 2:
-    wl+=send_file_content(page->filename,fd);
+    wl+=send_file_content(page->filename,page->bodysize,fd);
     break;
   case 3:
     wl+=send_dir_content(page->filename,page->uri,fd);
@@ -183,6 +194,9 @@ int process_request(struct http_request *r,int fd)
 
   if(r->op_code != BAD_REQUEST) {
     req=r->uri;
+
+    fprintf(stderr,"request: %s\n",req);
+
     page=lookup_cache(req);
     if(page) {
       /*quick check*/
@@ -456,14 +470,14 @@ static void quick_exchange_errorpage(struct page_t *page,int op)
 
   switch(op) {
   case NOT_FOUND:
-    snprintf(page->head,hl,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\n \
+    snprintf(page->head,hl,"HTTP/1.1 404 Not Found\nDate: %s\nServer: %s\n\
 Connection-type: closed\nContent-type: text/html\n\n",date,
 	     (const char *)"RedLeaf v0.1a");
     bl=sizeof(char)*(strlen(NOTFOUND_PAGE)+strlen(page->uri)+1);
     snprintf(page->body,bl,NOTFOUND_PAGE,page->uri);
     break;
   case FORBIDDEN:
-    snprintf(page->head,hl,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: %s\n \
+    snprintf(page->head,hl,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: %s\n\
 Connection-type: closed\nContent-type: text/html\n\n",date,
 	     (const char *)"RedLeaf v0.1a");
     bl=sizeof(char)*(strlen(FORBIDDEN_PAGE)+strlen(page->uri)+1);
