@@ -200,14 +200,17 @@ int process_request(struct http_request *r,int fd)
     page=lookup_cache(req);
     if(page) {
       /*quick check*/
-      stat(page->filename,&ystat);
+      if(stat(page->filename,&ystat)) {
 
-      if(errno==EACCES)
-	op=FORBIDDEN;
-      else if(errno==ENOENT)
-	op=NOT_FOUND;
-      else
-	op=OK;
+	if(errno==EACCES)
+	  op=FORBIDDEN;
+	else if(errno==ENOENT)
+	  op=NOT_FOUND;
+	else
+	  op=page->op;
+      } else op=page->op;
+
+      fprintf(stderr,"filepath=%s\nCached\nop=%d\n",page->filename,op);
 
       if(page->op>200) {
 
@@ -219,15 +222,15 @@ int process_request(struct http_request *r,int fd)
 	switch(page->op) {
 	case 1:
 	case 2:
-	  if(page->last_stat!=ystat.st_mtime && op==OK) { /*fucking deal - file changed*/
+	  if(page->last_stat!=ystat.st_mtime && op==OK)  /*fucking deal - file changed*/
 	    quick_exchange_filepage(page,ystat);
-	    page->last_stat=ystat.st_mtime;
-	  } else if(op!=OK) 
-	    quick_exchange_errorpage(page,op);
+	  
+	  page->last_stat=ystat.st_mtime;
+
 	  break;
 	case 3:
-	  if(op!=OK) /*directory doesn't exist*/
-	    quick_exchange_errorpage(page,op);
+	  page->last_access=time(NULL);
+
 	  break;
 	}
 
@@ -474,6 +477,7 @@ static void quick_exchange_errorpage(struct page_t *page,int op)
 Connection-type: closed\nContent-type: text/html\n\n",date,
 	     (const char *)"RedLeaf v0.1a");
     bl=sizeof(char)*(strlen(NOTFOUND_PAGE)+strlen(page->uri)+1);
+    page->body=malloc(sizeof(char)*bl);
     snprintf(page->body,bl,NOTFOUND_PAGE,page->uri);
     break;
   case FORBIDDEN:
@@ -481,6 +485,7 @@ Connection-type: closed\nContent-type: text/html\n\n",date,
 Connection-type: closed\nContent-type: text/html\n\n",date,
 	     (const char *)"RedLeaf v0.1a");
     bl=sizeof(char)*(strlen(FORBIDDEN_PAGE)+strlen(page->uri)+1);
+    page->body=malloc(sizeof(char)*bl);
     snprintf(page->body,bl,FORBIDDEN_PAGE,page->uri);
     break;
   }
