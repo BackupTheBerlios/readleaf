@@ -30,12 +30,65 @@
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
+#include <time.h>
 
+#include <page.h>
+#include <file.h>
 
-void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port);
-int cr_sock(uint16_t p,const char *host);
-int get_cl_data(int fd);
+#define RD_TIMEOUT  30
+#define MAXBUF_LEN  4096
+
+typedef enum {
+  ST_READ,
+  ST_PRCS,
+  ST_NONE,
+  ST_TIMEOUT,
+  ST_ERROR,
+  ST_DONE,
+} state_t;
+
+typedef enum {
+  SS_HEAD,
+  SS_BODY,
+  SS_FILE,
+  SS_DONE,
+} hbs_t;
+
+struct connection_t {
+  int socket;
+  struct in_addr addr;
+
+  /*states*/
+  unsigned short rxstat,wxstat;
+
+  /*timing*/
+  time_t last_state;
+  time_t elapsed_time;
+
+  /*counting*/
+  size_t total_size; /*total bytes to send*/
+  size_t sent_size; /*sent bytes (head+body)*/
+
+  size_t request_len;
+  char *request;
+  char *req_ptr;
+
+  size_t data_len;
+  void *data;
+  void *data_ptr;
+
+  hbs_t hb_switch;
+
+  void *data_send;
+
+  /*page for process*/
+  struct page_t *page;
+  /*file session if exist*/
+  struct file_session_t *file;
+};
+
+/*global functions*/
+
 int main_process(int argc,char **argv);
-
 
 #endif

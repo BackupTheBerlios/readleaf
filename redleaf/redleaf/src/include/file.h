@@ -1,5 +1,5 @@
 /*
- * RedLeaf reading directory application
+ * RedLeaf file_session_t operations
  *
  * Copyright (C) 2006, 2007 RedLeaf devteam org.
  *
@@ -20,9 +20,24 @@
  * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
  */ 
 
-#ifndef __HTTP_READ_DIR__H__
-#define __HTTP_READ_DIR__H__
+#ifndef __FILE_H__
+#define __FILE_H__
 
-char *read_dir_contents(const char *filename,const char *uri);
+#include <sys/types.h>
+#include <unistd.h>
+
+struct file_session_t {
+  char *filename;  /*file name*/
+  int fd;          /*descriptor*/
+  off_t cur_off;   /*current offset*/
+  size_t file_len; /*file length*/
+  void *buf;       /*temproary buffer*/
+  size_t buf_len;  /*length of the buffer*/
+};
+
+struct file_session_t *create_file_session(const char *filename,size_t buf_len);
+void destroy_file_session(struct file_session_t *p);
+void *read_file_session(struct file_session_t *p,size_t *chunk_len);
+void updoffset_file_session(struct file_session_t *p,off_t offset);
 
 #endif

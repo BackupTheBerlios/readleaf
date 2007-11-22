@@ -139,8 +139,7 @@ struct http_reply {
 
 /*functions*/
 struct http_request *parse_http_request(char *msg);
-int process_request(struct http_request *r,int fd);
-
+struct page_t *page_t_generate(char *request);
 void free_http_request(struct http_request *r);
 
 #endif /*__HTTP_H__*/

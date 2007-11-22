@@ -1,9 +1,9 @@
 # by tirra <tirra.newly@gmail.com> (c) 2006, 2007
 # makefile for redleaf sources
 
-SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c page.c
+SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c page.c file.c
 CFLAGS=-g -Wall
-OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o libdata/libdata.a
+OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o file.o libdata/libdata.a
 INCLUDES+=include/
 
 all: defaults

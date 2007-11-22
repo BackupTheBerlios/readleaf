@@ -23,6 +23,8 @@
 #ifndef __PAGE_H__
 #define __PAGE_H__
 
+#define CACHE_TIMEOUT  60
+
 /*page_t abstraction*/
 struct page_t {
   char *uri; /*url of the page*/
@@ -30,7 +32,8 @@ struct page_t {
   void *body; /*body of the message*/
   char *filename; /*filename, maybe NULL if content of file is cached*/
 
-  unsigned long bodysize; /*length of the body*/
+  size_t head_len;
+  size_t bodysize; /*length of the body*/
 
   time_t last_modify; /*last change of the page*/
   time_t last_stat; /*last modify for file*/
@@ -41,11 +44,14 @@ struct page_t {
 	   * 3 if the file is directory
 	   * http error - if it's a error
 	   */
+  int ref;
 };
 
 /*initial functions for page_t*/
 struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int op);
 void free_page_t(struct page_t *page);
+int normalize_page(struct page_t *page);
+int denormalize_page(struct page_t *page);
 /*cache functions - tree lookup and insert/deletion part*/
 int init_page_t_cache(void);
 int insert_cache(struct page_t *page);

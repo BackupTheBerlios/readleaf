@@ -29,31 +29,55 @@
 #include <sys/stat.h>
 #include <string.h>
 
+/*TODO:
+ * look&feel:
+ *  - add types,sizes to the entries
+ *  - add better sorting (directories first)
+ * functionality:
+ *  - add sorting with other methods
+ *  - checking
+ *  - add url decoding
+ */
+
+#define LSHEAD  "<html><head><title>%s contents:</title></head><body>\
+<h1>%s directory contents:</h1><hr>\n"
+#define LSBOTTOM  "<hr>Redleaf v0.1a<br></body></html>"
+#define LSENTRY  "<a href=\"%s\">%s</a><br>\n"
+
+/*local used variables*/
+static int total_files=0;
+
 /*local functions prototypes*/
 static int qsort_cmp_by_name(const void *a,const void *b);
 static char **read_dir_list(const char *path);
 static void free_dir_list(char **list);
 
-int write_html_dir_list(int fd,const char *path,const char *uri)
+char *read_dir_contents(const char *filename,const char *uri)
 {
-  int i=0,o=0;
-  char **list=read_dir_list(path);
+  char **dlist=read_dir_list(filename);
+  char tbuf[384];
+  unsigned int len=strlen(LSHEAD)+strlen(LSBOTTOM)+strlen(uri)*2+1;
+  char *outbuf=NULL;
+  int i;
 
-  while(list[i]) {
-    o+=write(fd,"<a href=\"",strlen("<a href=\""));
-    if(strcmp(uri,"/"))
-      o+=write(fd,uri,strlen(uri));
-    o+=write(fd,"/",strlen("/"));
-    o+=write(fd,list[i],strlen(list[i]));
-    o+=write(fd,"\">",strlen("\">"));
-    o+=write(fd,list[i],strlen(list[i]));
-    o+=write(fd,"</a><br>",strlen("</a><br>"));
-    i++;
+  len+=(strlen(LSENTRY)+256)*total_files;
+  outbuf=calloc(1,len);
+  if(!outbuf) {
+    fprintf(stderr,"Error allocating memory.\n read_dir_contents()\n");
+    goto func_exit;
   }
+  sprintf(outbuf,LSHEAD,uri,uri);
+  for(i=0;i<=total_files;i++) {
+    sprintf(tbuf,LSENTRY,dlist[i],dlist[i]);
+    outbuf=strcat(outbuf,tbuf);
+  }
+  outbuf=strcat(outbuf,LSBOTTOM);
 
-  free_dir_list(list);
 
-  return o;
+ func_exit:
+  free_dir_list(dlist);
+
+  return outbuf;
 }
 
 static int qsort_cmp_by_name(const void *a,const void *b)
@@ -63,20 +87,22 @@ static int qsort_cmp_by_name(const void *a,const void *b)
 
 static char **read_dir_list(const char *path)
 {
-  int i=-1;
   char **list=malloc(sizeof(char)*256);
   DIR *dir;
   struct dirent *entry=malloc(sizeof(struct dirent));
 
+  total_files=-1;
   dir=opendir(path);
   while((entry=readdir(dir))) {
-    i++;
-    if(i/256>=1 && i%256==0)
-      list=realloc(list,sizeof(char)*(((i/256)+1)*256));
-    list[i]=strdup(entry->d_name);
+    if(!strcmp(entry->d_name,"."))
+      continue;
+    total_files++;
+    if(total_files/256>=1 && total_files%256==0)
+      list=realloc(list,sizeof(char)*(((total_files/256)+1)*256));
+    list[total_files]=strdup(entry->d_name);
   }
-  qsort(list,i,sizeof(char *),qsort_cmp_by_name);
-  i++;list[i]=NULL;
+  qsort(list,total_files-1,sizeof(char *),qsort_cmp_by_name);
+  list[total_files+1]=NULL;
   closedir(dir);
   free(entry);
 

@@ -114,6 +114,7 @@ struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int 
   page->last_stat=time(NULL);
   page->last_access=time(NULL);
   page->bodysize=0;
+  page->ref=0;
 
   return page;
 }
@@ -135,6 +136,47 @@ void free_page_t(struct page_t *page)
   return;
 }
 
+int normalize_page(struct page_t *page)
+{
+  int total_len=page->head_len+page->bodysize;
+  char *data=NULL,*data_r;
+
+  if(page->op==2) /*normal, in the case of big file*/
+    return 0;
+
+  data=malloc(total_len);
+  data_r=data;
+  memcpy(data,page->head,page->head_len);
+  data_r+=page->head_len;
+  memcpy(data_r,page->body,page->bodysize);
+  free(page->head);
+  free(page->body);
+  page->head=data;
+  page->body=data_r;
+
+  return 0;
+}
+
+int denormalize_page(struct page_t *page)
+{
+  char *head,*body;
+
+  if(page->op==2) /*normal, in the case of big file*/
+    return 0;
+  head=malloc(page->head_len);
+  head=memcpy(head,page->head,page->head_len);
+  body=malloc(page->bodysize);
+  body=memcpy(body,page->body,page->bodysize);
+
+  free(page->head);
+
+  page->head=head;
+  page->body=body;
+
+  return 0;
+}
+
+/*local functions*/
 static int compare_function(const void *a, const void *b)
 {
   return strcmp((const char *)a,(const char *)b);

@@ -25,26 +25,467 @@
 #include <stdlib.h>
 #include <sys/socket.h>
 #include <sys/types.h>
+#include <sys/wait.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
 #include <signal.h>
 #include <unistd.h>
+#include <fcntl.h>
+#include <time.h>
+#include <errno.h>
 
 #include <http.h>
+#include <file.h>
+#include <serv.h>
+#include <misc.h>
 
-#define PORT  8080
-#define MAX_MSG  4096
+#define PORT             8080  /*port to listen*/
+#define MAX_MSG          4096  /*max message length (from client)*/
+#define MAX_CONNECTIONS  10    /*max number of client per time*/
 
-#define _DEBUG_  0
+#define _DEBUG_  0 /*debug info macro*/
 #undef _DEBUG_
 
-int sock=-1;
+/*local varios variables*/
+static struct connection_t **connections=NULL;
+static int total_connections=0;
+static int max_connections=0;
+static int sock=-1;
+static fd_set fdrdset,fdwrset;
+static time_t current_time;
 
 /*local functions prototypes*/
 static void sigint_handler(int signal_number);
+static void sigchld_handler(int signal_number);
+static void sigpipe_handler(int signal_number);
+static void init_connections(int max);
+static void new_connection(void);
+static void read_connection(int i);
+static void parse_connection(int i);
+static void write_connection(int i);
+static void close_connection(int i);
+static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port);
+static int cr_sock(uint16_t p,const char *host);
+static int shutdown_socket(void);
+static int unblock_socket(int sk);
+/*debug outpur functions*/
+static void dbg_print_connection_info(int i);
 
-void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port)
+int main_process(int argc,char **argv) 
+{
+  fd_set trdset,twrset;
+  int i;
+  struct timeval tm;
+
+  sock=cr_sock(PORT,"localhost");
+  if(sock==-1)
+    exit(3);
+  if(listen(sock,1)<0) {
+    fprintf(stderr,"Error on socket listening.\n");
+    shutdown_socket();
+    exit(3);
+  }
+
+  unblock_socket(sock);
+
+  init_connections(MAX_CONNECTIONS);
+  max_connections=MAX_CONNECTIONS;
+
+  /*add signal handling*/
+  signal(SIGINT,sigint_handler);
+  signal(SIGPIPE,sigpipe_handler);
+
+  current_time=time(NULL);
+
+  FD_ZERO(&fdrdset);
+  FD_ZERO(&fdwrset);
+  FD_SET(sock,&fdrdset);
+
+  while(1) {
+    current_time=time(NULL);
+    trdset=fdrdset;
+    twrset=fdwrset;
+
+    tm.tv_sec=0;
+    tm.tv_usec=2;
+
+    if(select(FD_SETSIZE,&trdset,&twrset,NULL,&tm)<0){
+      perror("select");
+      shutdown_socket();
+      exit(3);
+    }
+
+    if(FD_ISSET(sock,&trdset)) /*try to create new connection*/
+      new_connection();
+
+    for(i=0;i<max_connections;i++) {
+      if(connections[i]==NULL)
+	break;
+      if(connections[i]->socket==-1)
+	continue;
+
+      if(FD_ISSET(connections[i]->socket,&trdset)) { /*selected to read*/
+	connections[i]->last_state=current_time;
+	if(connections[i]->rxstat==ST_NONE)
+	  connections[i]->rxstat=ST_PRCS;
+	printf("--------------------read(%d)--------\n",i);
+	read_connection(i); /*try to read in general case*/
+	unblock_socket(connections[i]->socket);
+
+	if(connections[i]->rxstat==ST_PRCS) /*parse if necessary*/
+	  parse_connection(i); 
+      }
+
+      if(connections[i]->rxstat==ST_PRCS && /*catch timeout while read*/
+	 current_time - connections[i]->last_state > RD_TIMEOUT)
+	connections[i]->rxstat=ST_TIMEOUT;
+      
+      /*writing connections*/
+      if(/*FD_ISSET(connections[i]->socket,&twrset)*/connections[i]->rxstat==ST_DONE ) {
+	connections[i]->last_state=current_time;
+	write_connection(i); 
+	fprintf(stderr,"--> \twrote(%d)\n",i);
+      }
+
+
+      /*check the states for close droped connections*/
+      if((connections[i]->rxstat==ST_ERROR || 
+	  connections[i]->rxstat==ST_TIMEOUT ||
+	  connections[i]->rxstat==ST_DONE) &&
+	 (connections[i]->wxstat==ST_ERROR ||
+	  connections[i]->wxstat==ST_DONE))
+	close_connection(i); 
+    }
+    
+  }
+    
+  return 0;
+}
+
+/*================implementation==============================*/
+
+static void close_connection(int i)
+{
+  FD_CLR(connections[i]->socket,&fdwrset);
+  FD_CLR(connections[i]->socket,&fdrdset);
+  total_connections--;
+  close(connections[i]->socket);
+  connections[i]->socket=-1;
+  connections[i]->last_state=current_time;
+  connections[i]->data_len=0;
+  if(connections[i]->page!=NULL)
+    connections[i]->page->ref--;
+  connections[i]->page=NULL;
+  connections[i]->data_ptr=connections[i]->data=NULL;
+  connections[i]->data_send=NULL;
+  if(connections[i]->file)
+    destroy_file_session(connections[i]->file);
+  connections[i]->file=NULL;
+
+  return;
+}
+
+static void write_connection(int i)
+{
+  int res;
+  struct page_t *page;
+  void *buf=NULL;
+  size_t flen;
+  off_t old_off;
+
+  if(connections[i]->wxstat==ST_ERROR || connections[i]->wxstat==ST_DONE)
+    return;
+
+  if(connections[i]->page==NULL) {
+    connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
+    return;
+  } else
+    page=connections[i]->page;
+
+  connections[i]->wxstat=ST_PRCS;
+
+  if(connections[i]->hb_switch==SS_HEAD) { /*first time to send*/
+    connections[i]->data=connections[i]->data_ptr=page->head;
+    connections[i]->data_len=page->bodysize+page->head_len;
+    connections[i]->hb_switch=SS_BODY;
+  } else if(connections[i]->data_len==0 && 
+	    connections[i]->hb_switch!=SS_HEAD) { /*data sent*/
+    if(page->op==2)
+      connections[i]->hb_switch=SS_FILE;
+    else {
+      connections[i]->wxstat=ST_DONE;
+      FD_CLR(connections[i]->socket,&fdwrset);
+      return;
+    }
+  }
+  if(connections[i]->hb_switch==SS_BODY) {
+    res=write(connections[i]->socket,connections[i]->data_ptr,
+	      connections[i]->data_len);
+    if(res<0 && errno!=EPIPE)
+      return;
+    if(res<0) {
+      fprintf(stderr,"Error on writing to the socket.\n");
+      connections[i]->wxstat=ST_ERROR;
+      FD_CLR(connections[i]->socket,&fdwrset);
+      return;      
+    }
+    connections[i]->data_len-=res;
+    connections[i]->data_ptr+=res;
+  }
+  if(connections[i]->hb_switch==SS_FILE) { /*sending*/
+    if(connections[i]->data_len==0) { /*set parameters*/
+      connections[i]->data_len=connections[i]->file->file_len;	  
+    }
+    old_off=connections[i]->file->cur_off;
+    buf=read_file_session(connections[i]->file,&flen);
+    res=write(connections[i]->socket,buf,flen);
+    if(res<0 && errno!=EPIPE) {
+      updoffset_file_session(connections[i]->file,old_off);
+      return;
+    } 
+    if(res<0) {
+      fprintf(stderr,"Error on writing to the socket.\n");
+      connections[i]->wxstat=ST_ERROR;
+      FD_CLR(connections[i]->socket,&fdwrset);
+      return;      
+    }
+    connections[i]->data_len-=res;
+    updoffset_file_session(connections[i]->file,old_off+res);
+  }
+  if(connections[i]->hb_switch==SS_FILE && connections[i]->data_len==0) 
+    connections[i]->hb_switch=SS_DONE;
+  if(connections[i]->hb_switch==SS_DONE) { /*uff, all sent*/
+    destroy_file_session(connections[i]->file);
+    connections[i]->file=NULL;
+    connections[i]->wxstat=ST_DONE;
+    FD_CLR(connections[i]->socket,&fdwrset);
+  }
+  
+  
+  return;
+}
+
+static void parse_connection(int i) /*simply request the page*/
+{
+  struct page_t *page;
+  connections[i]->page=page_t_generate(connections[i]->request);
+  if(connections[i]->page==NULL)
+    connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
+
+  page=connections[i]->page;
+  if(page->op==2) 
+    connections[i]->file=create_file_session(page->filename,4096);
+  page->ref++;
+
+  fprintf(stderr,"parse_connection(%d)\n",i);
+
+  connections[i]->rxstat=ST_DONE;
+  FD_CLR(connections[i]->socket,&fdrdset);
+
+  fprintf(stderr,"------------------------------------------\n");
+  dbg_print_connection_info(i);
+  fprintf(stderr,"------------------------------------------\n");
+
+  return;
+}
+
+static void dbg_print_connection_info(int i)
+{
+  char *buf=malloc(64);
+  char *date=NULL;
+  fprintf(stderr,"connection[%d] stat:\n",i);
+  switch(connections[i]->rxstat) {
+  case ST_READ:
+    buf=strdup("READ");
+    break;
+  case ST_PRCS:
+    buf=strdup("PROCESS");
+    break;
+  case ST_NONE:
+    buf=strdup("NONE");
+    break;
+  case ST_TIMEOUT:
+    buf=strdup("TIMEOUTED");
+    break;
+  case ST_ERROR:
+    buf=strdup("ERROR");
+    break;
+  case ST_DONE:
+    buf=strdup("DONE");
+    break;
+  }
+  fprintf(stderr,"\tRXSTAT: %s",buf);
+  switch(connections[i]->wxstat) {
+  case ST_READ:
+    buf=strdup("READ");
+    break;
+  case ST_PRCS:
+    buf=strdup("PROCESS");
+    break;
+  case ST_NONE:
+    buf=strdup("NONE");
+    break;
+  case ST_TIMEOUT:
+    buf=strdup("TIMEOUTED");
+    break;
+  case ST_ERROR:
+    buf=strdup("ERROR");
+    break;
+  case ST_DONE:
+    buf=strdup("DONE");
+    break;
+  }
+  fprintf(stderr," WXSTAT: %s\n",buf);
+  date=get_rfc1123date(connections[i]->last_state);
+  fprintf(stderr,"\tLast processed time: %s\n",date);
+  fprintf(stderr,"\tRequest length: %d\n",connections[i]->request_len);
+  fprintf(stderr,"\tRequest: \"%s\"\n",connections[i]->request);
+
+  if(connections[i]->page)
+    fprintf(stderr,"\tPage URI: %s\n",connections[i]->page->uri);
+  else
+    fprintf(stderr,"\tPage is NULL\n");
+
+  free(date);
+  free(buf);
+
+  return;
+}
+
+static void read_connection(int i)
+{
+  int rd;
+
+  if(connections[i]->rxstat==ST_ERROR || connections[i]->rxstat==ST_TIMEOUT ||
+     connections[i]->rxstat==ST_DONE)
+    return;
+
+  rd=read(connections[i]->socket,connections[i]->req_ptr,
+	  MAX_MSG-connections[i]->request_len);
+
+  fprintf(stderr,"ridden %d bytes\n",rd);
+
+  if(rd<=0) {
+    if(rd<0) {
+      if(errno==EWOULDBLOCK)
+	return;
+      connections[i]->rxstat=connections[i]->wxstat=ST_ERROR; /*error on read*/
+      FD_CLR(connections[i]->socket,&fdrdset);
+      return;
+    }
+    connections[i]->rxstat=ST_DONE;
+    FD_CLR(connections[i]->socket,&fdrdset);
+  } else { /*actual read*/
+    connections[i]->req_ptr+=rd;
+    connections[i]->request_len+=rd;
+  }
+
+  fprintf(stderr,"read_connection(%d)->socket=%d\n",i,connections[i]->socket);
+  dbg_print_connection_info(i);
+
+  return;
+}
+
+static void new_connection(void)
+{
+  int i,cl;
+  socklen_t rin_len;
+  int o=1;
+  struct sockaddr_in rin;
+
+  rin_len=sizeof(rin);
+
+  total_connections++;
+  for(i=0;i<max_connections;i++) 
+    if(connections[i]==NULL || connections[i]->socket==-1)
+      break;
+  if(i==max_connections) { /*somebody will be kicked off*/
+    cl=accept(sock,(struct sockaddr *) &rin,&rin_len);
+    fprintf(stderr,"Too many connections. Dropping connection.\n");
+    close(cl);
+  } else {
+    if(!connections[i]) {
+      connections[i]=calloc(1,sizeof(struct connection_t));
+      if(!connections[i]) {
+	fprintf(stderr,"Not enough memory.\n");
+	exit(3);
+      }
+      connections[i]->socket=-1;
+      connections[i]->request=malloc(MAXBUF_LEN);
+      if(!connections[i]->request) {
+	fprintf(stderr,"Not enough memory.\n");
+	exit(3);
+      }
+    }
+    connections[i]->last_state=current_time;
+    connections[i]->rxstat=connections[i]->wxstat=ST_NONE;
+    connections[i]->hb_switch=SS_HEAD;
+    connections[i]->file=NULL;
+    connections[i]->page=NULL;
+    connections[i]->req_ptr=connections[i]->request;
+    connections[i]->socket=accept(sock,(struct sockaddr *) &rin,&rin_len);
+    //unblock_socket(connections[i]->socket);
+    if(connections[i]->socket<0) {
+      fprintf(stderr,"Accept failed.\n");
+      perror("accept() :");
+      connections[i]->socket=-1;
+    } else {
+      if(fcntl(connections[i]->socket,F_SETFL,
+	       fcntl(connections[i]->socket,F_SETFL,0) | FNDELAY) < 0) {
+	fprintf(stderr,"fcntl failed.\n");
+	close(connections[i]->socket);
+	connections[i]->socket=-1;
+      } else {
+	if(setsockopt(connections[i]->socket,SOL_SOCKET,SO_REUSEADDR,
+		      (char *) &o, sizeof(int))==-1)
+	  fprintf(stderr,"setsockopt() failed.\n");
+	FD_SET(connections[i]->socket,&fdrdset); /*connected*/
+	//connections[i]->addr=rin.in_addr;
+      }
+    }
+  }
+
+  fprintf(stderr,"new_connection(%d)->socket=%d\n",i,connections[i]->socket);    
+
+  return;
+}
+
+static void sigint_handler(int signal_number)
+{
+  fprintf(stdout,"Shutting down daemon ... \n");
+  fflush(stdout);
+  shutdown_socket();
+  exit(0);
+
+  return;
+}
+
+static void sigchld_handler(int signal_number)
+{
+  while (waitpid(-1,&signal_number,WNOHANG) > 0) ;
+}
+
+static void sigpipe_handler(int signal_number)
+{
+  /*dummy*/
+}
+
+static void init_connections(int max)
+{
+  connections=calloc(max,sizeof(struct connection_t));
+  if(!connections) {
+    fprintf(stderr,"Cannot allocate memory for connections.\nExiting.\n");
+    exit(3);
+  }
+
+  max_connections=max;
+  total_connections=0;
+
+  return;
+}
+
+static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port)
 {
   struct hostent *h=NULL;
 
@@ -59,7 +500,7 @@ void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port)
   return;
 }
 
-int cr_sock(uint16_t p,const char *host)
+static int cr_sock(uint16_t p,const char *host)
 {
   int sk;
   struct sockaddr_in s;
@@ -78,6 +519,18 @@ int cr_sock(uint16_t p,const char *host)
   return sk;
 }
 
+static int unblock_socket(int sk)
+{
+  int flags=fcntl(sk,F_GETFL,NULL);
+  if (flags==-1)
+    perror("fcntl(): ");
+  flags|=O_NONBLOCK;
+  if(fcntl(sk, F_SETFL, flags) == -1)
+    perror("fcntl(): ");
+
+  return 0;
+}
+
 static int shutdown_socket(void)
 {
   if(shutdown(sock,SHUT_RDWR)==-1){
@@ -87,100 +540,3 @@ static int shutdown_socket(void)
   return 0;
 }
 
-int get_cl_data(int fd)
-{
-  char buf[MAX_MSG];
-  int n,l;
-  struct http_request *o;
-
-  memset(buf,'\0',MAX_MSG);
-  n=read(fd,buf,MAX_MSG);
-  if(n<0) {
-    perror("read:");
-  } else if(n==0)
-    return -1;
-  else {
-#ifdef _DEBUG_
-    fprintf(stdout,"SRV->MSG: \"%s\"\n",buf);
-#endif
-    o=parse_http_request(buf);
-    if(o == NULL) {
-      return -1;
-    }
-    /*process the request*/
-    l=process_request(o,fd);
-    free_http_request(o);
-    if(l>0)
-      return 0;
-    else return -1;
-  }
-
-  return 0;
-}
-
-int main_process(int argc,char **argv) 
-{
-  fd_set active_fd_set,read_fd_set;
-  struct sockaddr_in claddr;
-  int i;
-  int n;
-  socklen_t s=sizeof(struct sockaddr_in);
-
-  sock=cr_sock(PORT,"localhost");
-  if(sock==-1)
-    exit(3);
-  if(listen(sock,1)<0) {
-    fprintf(stderr,"Error on socket listening.\n");
-    shutdown_socket();
-    exit(3);
-  }
-
-  /*add signal handling*/
-  signal(SIGINT,sigint_handler);
-
-  FD_ZERO(&active_fd_set);
-  FD_SET(sock,&active_fd_set);
-
-  while(1) {
-    read_fd_set=active_fd_set;
-    if(select(FD_SETSIZE,&read_fd_set,NULL,NULL,NULL)<0){
-      perror("select");
-      shutdown_socket();
-      exit(3);
-    }
-    for(i=0;i<FD_SETSIZE;i++) {
-      if(FD_ISSET(i,&read_fd_set)) {
-	if(i==sock) {
-	  n=accept(sock,(struct sockaddr *)&claddr,&s);
-	  if(n<0) {
-	    perror("accept:");
-	    shutdown_socket();
-	    exit(3);
-	  }
-	  //	  fprintf(stdout,"Connected from %s(%d).\n",inet_ntoa(claddr.sin_addr,claddr.sin_port));
-	  FD_SET(n,&active_fd_set);
-	} else { /*continuing*/
-	  if(get_cl_data(i)<0) {
-	    close(i);
-	    FD_CLR(i, &active_fd_set);
-	  }
-	}
-      }
-    }
-
-    //    usleep(100);
-  }
-
-
-  return 0;
-}
-
-static void sigint_handler(int signal_number)
-{
-  fprintf(stdout,"Shutting down daemon ... \n");
-  fflush(stdout);
-  shutdown_socket();
-  exit(0);
-
-  return;
-}
