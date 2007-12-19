@@ -42,7 +42,7 @@
 #define LSHEAD  "<html><head><title>%s contents:</title></head><body>\
 <h1>%s directory contents:</h1><hr>\n"
 #define LSBOTTOM  "<hr>Redleaf v0.1a<br></body></html>"
-#define LSENTRY  "<a href=\"%s\">%s</a><br>\n"
+#define LSENTRY  "<a href=\"%s/%s\">%s</a><br>\n"
 
 /*local used variables*/
 static int total_files=0;
@@ -58,9 +58,11 @@ char *read_dir_contents(const char *filename,const char *uri)
   char tbuf[384];
   unsigned int len=strlen(LSHEAD)+strlen(LSBOTTOM)+strlen(uri)*2+1;
   char *outbuf=NULL;
+  char *_uri=uri; 
+  _uri+=sizeof(char);
   int i;
 
-  len+=(strlen(LSENTRY)+256)*total_files;
+  len+=(strlen(LSENTRY)+512)*total_files;
   outbuf=calloc(1,len);
   if(!outbuf) {
     fprintf(stderr,"Error allocating memory.\n read_dir_contents()\n");
@@ -68,7 +70,7 @@ char *read_dir_contents(const char *filename,const char *uri)
   }
   sprintf(outbuf,LSHEAD,uri,uri);
   for(i=0;i<=total_files;i++) {
-    sprintf(tbuf,LSENTRY,dlist[i],dlist[i]);
+    sprintf(tbuf,LSENTRY,_uri,dlist[i],dlist[i]);
     outbuf=strcat(outbuf,tbuf);
   }
   outbuf=strcat(outbuf,LSBOTTOM);

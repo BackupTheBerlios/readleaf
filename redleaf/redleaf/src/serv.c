@@ -182,6 +182,7 @@ static void close_connection(int i)
   if(connections[i]->file)
     destroy_file_session(connections[i]->file);
   connections[i]->file=NULL;
+  connections[i]->request_len=0;
 
   return;
 }
@@ -424,6 +425,7 @@ static void new_connection(void)
     connections[i]->file=NULL;
     connections[i]->page=NULL;
     connections[i]->req_ptr=connections[i]->request;
+    connections[i]->request_len=0;
     connections[i]->socket=accept(sock,(struct sockaddr *) &rin,&rin_len);
     //unblock_socket(connections[i]->socket);
     if(connections[i]->socket<0) {

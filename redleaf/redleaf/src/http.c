@@ -321,7 +321,8 @@ static void gen_error_page(struct page_t *page,int err)
   char *date=get_rfc1123date(time(NULL));
   int len=0;
 
-  denormalize_page(page);
+  if(page->head)
+    denormalize_page(page);
 
   page->op=err;
   if(page->body)    free(page->body);
