@@ -60,6 +60,7 @@ static char *mime_type(char *path);
 static struct page_t *generate_bad_request_page(void);
 static void gen_error_page(struct page_t *page,int err);
 static void update_page(struct page_t *page,struct stat ystat);
+static void decode_uri(char *uri);
 
 /*TODO: exchange malloc/free/strdup/strndup to safe internal functions*/
 /*TODO: parse other variables from request*/
@@ -120,6 +121,7 @@ struct page_t *page_t_generate(char *request)
     return bad_request_page;
   }
   req=ht_req->uri;
+  decode_uri(req);
   page=lookup_cache(req);
   if(page) { /*located in cache*/
     if(page->ref!=0) /*if it's currently used via connection - return it*/
@@ -406,6 +408,26 @@ static void init_http_request(struct http_request *p)
   p->uri=p->host=p->user_agent=p->accept=p->accept_language=p->accept_encoding=NULL;
   p->accept_charset=NULL;
   p->op_code = OK;
+
+  return;
+}
+
+static void decode_uri(char *uri)
+{
+  char *w,*t;
+
+  for(w=uri,t=uri;*w;) {
+    if(*w=='%' && isxdigit(w[1]) && isxdigit(w[2])) {
+      *t++ =(isdigit(w[1]) ? (w[1]-'0') : 
+	     (tolower(w[1]) - 'a' + 10)) * 16 +
+	(isdigit(w[2]) ? (w[2] - '0') : 
+	 (tolower(w[2]) - 'a' + 10));
+      w+=3;
+    } else
+      *t++ = *w++;
+  }
+
+  *t='\0';
 
   return;
 }
