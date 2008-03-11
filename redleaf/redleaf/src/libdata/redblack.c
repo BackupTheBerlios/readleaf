@@ -236,7 +236,7 @@ static void redblack_convert_from_list(usrtc_t *us)
   usrtc_node_t *nil=tree_null_priv(us);
   usrtc_node_t *next;
   usrtc_node_t *complete=NULL;
-  usrtc_count_t fullcount=USRTC_COUNT_T_MAX;
+  usrtc_count_t fullcount=(usrtc_count_t)USRTC_COUNT_T_MAX;
   usrtc_count_t nodecount=us->nodecount;
   usrtc_count_t botrowcount;
   unsigned int baselevel=0;

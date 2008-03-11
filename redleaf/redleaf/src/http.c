@@ -37,6 +37,7 @@
 #include <http_read_dir.h>
 #include <misc.h>
 #include <page.h>
+#include <ctype.h>
 
 #define _DEBUG_  1
 
@@ -181,7 +182,7 @@ struct page_t *page_t_generate(char *request)
       if(S_ISREG(ystat.st_mode)) { /*yep, file*/
 	length=ystat.st_size;
 	sprintf(head,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-Length: %ld\nContent-type: %s\n\n",
-		date,length,mime_type(uri));
+		date,(long int)length,mime_type(uri));
 	page->head=head;
 	page->head_len=strlen(head);
 	if(length<=4096) { /*read this*/
@@ -431,4 +432,3 @@ static void decode_uri(char *uri)
 
   return;
 }
-

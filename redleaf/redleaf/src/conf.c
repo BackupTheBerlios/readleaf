@@ -23,15 +23,14 @@
 #include <stdlib.h>
 #include <stdio.h>
 #include <string.h>
-#include <ctype.h>
 #include <unistd.h>
+#include <sys/types.h>
+#include <ctype.h>
 
 #include <conf.h>
 
 /*TODO: fix the bugs, add additional checking*/
 /*
- * BUG: P0001: seg fault on empty arguments
- * BUG: P0002: seg fault on empty section
  * FEATURE: add virtual hosting parsing and checking
  */
 /*configuration parser and structures*/
@@ -41,6 +40,8 @@
 #define LINE_BUF  1024
 
 #define __STRLEN(x) (((x) == NULL) ? 0 : strlen(x))
+#define __STRDUP(x) (((x) == NULL) ? strdup("ERR") : strdup(x))
+
 
 struct syn_tree {
   int order;
@@ -65,18 +66,15 @@ typedef enum {
   _VIRTUALHOST,
 } module_t;
 
-static char *sections[]={"General","Module","Directory","VirtualHost"};
+/*static char *sections[]={"General","Module","Directory","VirtualHost"};
 static char *general_pairs[]={"hostname","port","root_directory","log_level","user","group"};
 static char *module_pairs[]={"path"};
 static char *directory_pairs[]={"webpath","access","index"};
 static char *virtualhost_pairs[]={"directory"};
 
-static int general_tree_fit=5;
+static int general_tree_fit=5;*/
 static unsigned int total_sections=0; 
 static struct syn_tree local_tree[MAX_SECTIONS];
-
-/*local functions prototypes*/
-static int __synlen(const char **src);
 
 void init_defaults(void)
 {
@@ -90,7 +88,7 @@ static struct __conf_section __readwseek_section(char *buf,int order);
 static int read_section(struct __conf_section *section,char *buf,int order);
 static int __scan_line_expr(char *buf,int n);
 static int read_syn_tree(char *buffer,int size);
-static int __synlen(const char **src);
+/*static int __synlen(const char **src);*/
 static struct variable *get_section_variables(const char *section,const char *name);
 
 char *get_general_value(const char *name)
@@ -99,10 +97,11 @@ char *get_general_value(const char *name)
   int i=0;
 
   while(i<=MAX_SECTIONS)
-    if(!strncmp((const char*)local_tree[i].name,"General",strlen("General"))){
+    if(!strncmp((const char*)local_tree[i].name,"General",__STRLEN("General"))){
       general=local_tree[i];
       break;
     } else i++;
+  
   i=0;
   while(general.vv[i].var){
     if(!strcmp((const char*)general.vv[i].var,name))
@@ -166,17 +165,17 @@ static int read_syn_tree(char *buffer,int size)
   while(b_size){
     if(*tbuf=='#')  /*skip this line - comment line*/
       while(*tbuf!='\n' || b_size<=0){
-        *tbuf++;b_size--;
+        tbuf++;b_size--;
       }
     else if(*tbuf=='\n') { /*override*/
-      *tbuf++;b_size--;
-    } else if(isblank(*tbuf)) { /*remove blanks*/
-      *tbuf++;b_size--;
+      tbuf++;b_size--;
+    } else if(isblank((int)*tbuf)) { /*remove blanks*/
+      tbuf++;b_size--;
     } else {
-      *fbuf=*tbuf; *tbuf++;b_size--;
+      *fbuf=*tbuf; tbuf++;b_size--;
       if(*fbuf=='{') ss++;
       if(*fbuf=='}') es++;
-      *fbuf++;
+      fbuf++;
     }
   }
 
@@ -194,10 +193,14 @@ static int read_syn_tree(char *buffer,int size)
   fbuf=buf;es=0;
   cnf_section=malloc(sizeof(struct __conf_section)*ss);
   (*cnf_section).order=-1;
-  printf("starting parsing ..3\n");
-  printf("\'%s\'\n", fbuf);
+#ifdef _DEBUG_
+  fprintf(stderr,"starting parsing ...\n");
+  fprintf(stderr,"\'%s\'\n", fbuf);
+#endif
   while(ss!=0) {
-    printf("ss=%i..\n", ss);
+#ifdef _DEBUG_
+    fprintf(stderr,"ss=%i..\n", ss);
+#endif
     if(read_section(cnf_section,fbuf,es)!=0) {
       fprintf(stderr,"error: reading section (%d).\n",es);
       free(buf);
@@ -210,19 +213,25 @@ static int read_syn_tree(char *buffer,int size)
   free(buf);
 
   ss=0;  tsect=cnf_section;
-  printf("starting parsing ..\n");
   total_sections=es;
   while(ss!=es){
     if(ss>MAX_SECTIONS) /*TODO:make reallocation after adding virtual hosts support*/
       break;
-    printf("Section:\nName:%s;Argument:%s;Order:%d\nData:\n%s\n",(*tsect).name,
-      (*tsect).arg,(*tsect).order,(*tsect).data);
+#ifdef _DEBUG_
+    fprintf(stderr,"Section:\nName:%s;Argument:%s;Order:%d\nData:\n%s\n",
+	    (*tsect).name,(*tsect).arg,(*tsect).order,(*tsect).data);
+#endif
+    local_tree[ss].name=__STRDUP((*tsect).name);
+    local_tree[ss].argument=__STRDUP((*tsect).arg);
+    local_tree[ss].order=(*tsect).order;
     fflush(stdout);
     if((*tsect).data) {
       char *expr=(*tsect).data;
       char *uui=expr;
       int i=0;
-      printf("ee '%s'\n",(*tsect).data);
+#ifdef _DEBUG_
+      fprintf(stderr,"ee '%s'\n",(*tsect).data);
+#endif
       sl=__scan_section_lines((*tsect).data);
       local_tree[ss].vv=NULL;
       if(__scan_line_expr((*tsect).data,sl)!=0)
@@ -231,16 +240,20 @@ static int read_syn_tree(char *buffer,int size)
         local_tree[ss].vv=malloc(sizeof(struct variable)*(sl+1));
         while(sl!=0){
           expr=uui;
-          while(*uui!='=') *uui++;
+          while(*uui!='=') uui++;
           *uui='\0';
           local_tree[ss].vv[i].var=strdup(expr);
-          printf("var=%s\n",expr);
-          *uui++;expr=uui;
-          while(*uui!=';') *uui++;
+#ifdef _DEBUG_
+          fprintf(stderr,"var=%s\n",expr);
+#endif
+          uui++;expr=uui;
+          while(*uui!=';') uui++;
           *uui='\0';
           local_tree[ss].vv[i].value=strdup(expr);
-          printf("value=%s\n",expr);
-          *uui++;
+#ifdef _DEBUG_
+          fprintf(stderr,"value=%s\n",expr);
+#endif
+          uui++;
           i++;sl--;
         }
         local_tree[ss].vv[++i].var=NULL;
@@ -248,7 +261,7 @@ static int read_syn_tree(char *buffer,int size)
       }
     }
 
-    *tsect++;ss++;
+    tsect++;ss++;
   }
 
   return 0;
@@ -259,7 +272,7 @@ static int __scan_line_expr(char *buf,int n)
   char *o=buf;int h=0;
   while(*o!='\0'){
     if(*o=='=') h++;
-    *o++;
+    o++;
   }
   return n-h;
 }
@@ -269,18 +282,18 @@ static int read_section(struct __conf_section *section,char *buf,int order)
   struct __conf_section *t=section;
   char *Y=buf,T;
 
-  while((*t).order!=-1)    *t++; 
+  while((*t).order!=-1)    t++; 
 
-  while(*Y!='}') *Y++;
-  *Y++;T=*Y;*Y='\0';
+  while(*Y!='}') Y++;
+  Y++;T=*Y;*Y='\0';
 
   *t=__readwseek_section(buf,order);
   *Y=T;
   buf=Y;
-  //  printf("afs: %s\n",buf);
+
   if((*t).order==-2)
     return -1;
-  *t++;(*t).order=-1;  
+  t++;(*t).order=-1;  
 
   return 0;
 }
@@ -288,11 +301,10 @@ static int read_section(struct __conf_section *section,char *buf,int order)
 static struct __conf_section __readwseek_section(char *buf,int order)
 {
   char *u=buf;
-  //printf("buf: %s\n",buf);
   char *section_name,*section_argument;
   struct __conf_section sect;
 
-  while(*u!='{')     *u++;
+  while(*u!='{')     u++;
   *u='\0';
   if(strlen(buf)<3){
     *u='{';
@@ -303,18 +315,18 @@ static struct __conf_section __readwseek_section(char *buf,int order)
   *u='{';u=buf;
   switch(__is_section_head_valid(buf)) {
     case 0:
-      while(*buf!='(') *buf++;
+      while(*buf!='(') buf++;
       *buf='\0';
-      section_name=strdup(u); *buf='('; *buf++;
+      section_name=strdup(u); *buf='('; buf++;
       if(*buf==')') section_argument=NULL;
       else {
         u=buf;
-        while(*buf!=')') *buf++;
+        while(*buf!=')') buf++;
         *buf='\0';
         section_argument=strdup(u);
         *buf=')';
       }
-      *buf++;
+      buf++;
       break;
     case -1:
       fprintf(stderr,"error: section defining is not valid.\n");
@@ -322,7 +334,7 @@ static struct __conf_section __readwseek_section(char *buf,int order)
       return sect;
       break;
   }
-  *buf++;
+  buf++;
   if(!__scan_section_lines(buf)){
     sect.order=order;
     sect.name=section_name;
@@ -332,13 +344,13 @@ static struct __conf_section __readwseek_section(char *buf,int order)
     return sect;
   } else {
     u=buf;
-    while(*buf!='}') *buf++;
+    while(*buf!='}') buf++;
     *buf='\0';
     sect.data=strdup(u);
     sect.name=section_name;
     sect.arg=section_argument;
     sect.order=order;
-    *buf='}';*buf++;
+    *buf='}';buf++;
   }
   return sect;
 }
@@ -351,7 +363,7 @@ static int __is_section_head_valid(char *buf)
   while(*y!='\0') {
     if(*y=='(') ss++;
     if(*y==')') es++;
-    *y++;
+    y++;
   }
   if(!ss || !es)
     return -1;
@@ -382,17 +394,17 @@ static int __scan_section_lines(char *buf)
   char *u=buf;
   while(*u!='}' && *u!='\0') {
     if(*u==';') ++l;
-    *u++;
+    u++;
   }
 
   return l;
 }
 
-static int __synlen(const char **src)
+/*static int __synlen(const char **src)
 {
   int i=0;
 
   while(src[i])    i++;
 
   return i;
-}
+  }*/

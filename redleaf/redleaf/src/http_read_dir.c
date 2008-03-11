@@ -58,7 +58,7 @@ char *read_dir_contents(const char *filename,const char *uri)
   char tbuf[384];
   unsigned int len=strlen(LSHEAD)+strlen(LSBOTTOM)+strlen(uri)*2+1;
   char *outbuf=NULL;
-  char *_uri=uri; 
+  char *_uri=(char *)uri; 
   _uri+=sizeof(char);
   int i;
 
@@ -119,4 +119,3 @@ static void free_dir_list(char **list)
   }
   free(list);
 }
-

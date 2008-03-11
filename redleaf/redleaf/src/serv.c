@@ -39,6 +39,7 @@
 #include <file.h>
 #include <serv.h>
 #include <misc.h>
+#include <conf.h>
 
 #define PORT             8080  /*port to listen*/
 #define MAX_MSG          4096  /*max message length (from client)*/
@@ -78,7 +79,15 @@ int main_process(int argc,char **argv)
   int i;
   struct timeval tm;
 
-  sock=cr_sock(PORT,"localhost");
+  char *cnf_value=get_general_value("port");
+  int port_n=8080;
+
+  if(cnf_value) 
+    port_n=atoi(cnf_value);
+
+  cnf_value=get_general_value("hostname");
+
+  sock=cr_sock(port_n,(cnf_value==NULL) ? "localhost" : cnf_value);
   if(sock==-1)
     exit(3);
   if(listen(sock,1)<0) {
@@ -89,8 +98,12 @@ int main_process(int argc,char **argv)
 
   unblock_socket(sock);
 
-  init_connections(MAX_CONNECTIONS);
-  max_connections=MAX_CONNECTIONS;
+  cnf_value=get_general_value("max_clients");
+
+  port_n=(cnf_value==NULL) ? MAX_CONNECTIONS : atoi(cnf_value);
+
+  init_connections(port_n);
+  max_connections=port_n;
 
   /*add signal handling*/
   signal(SIGINT,sigint_handler);
