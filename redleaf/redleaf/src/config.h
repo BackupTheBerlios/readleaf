@@ -6,4 +6,10 @@
 #define ETC_PATH     "etc/redleaf/"
 #define SHARE_PATH   "share/redleaf/"
 
+/*version stuff*/
+#define VER_MAJOR   0
+#define VER_MINOR   1
+#define VER_TREE    "autumn changes"
+#define VER_SUFFIX  "alpha"
+
 #endif

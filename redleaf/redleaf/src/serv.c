@@ -61,7 +61,7 @@ static void sigint_handler(int signal_number);
 static void sigchld_handler(int signal_number);
 static void sigpipe_handler(int signal_number);
 static void init_connections(int max);
-static void new_connection(void);
+static int new_connection(void);
 static void read_connection(int i);
 static void parse_connection(int i);
 static void write_connection(int i);
@@ -116,14 +116,15 @@ int main_process(int argc,char **argv)
   FD_SET(sock,&fdrdset);
 
   while(1) {
+    FD_SET(sock,&fdrdset);
     current_time=time(NULL);
     trdset=fdrdset;
     twrset=fdwrset;
 
     tm.tv_sec=0;
-    tm.tv_usec=2;
+    tm.tv_usec=max_connections;
 
-    if(select(FD_SETSIZE,&trdset,&twrset,NULL,&tm)<0){
+    if(select(FD_SETSIZE,&trdset,NULL,NULL,&tm)<0){
       perror("select");
       shutdown_socket();
       exit(3);
@@ -131,6 +132,7 @@ int main_process(int argc,char **argv)
 
     if(FD_ISSET(sock,&trdset)) /*try to create new connection*/
       new_connection();
+    
 
     for(i=0;i<max_connections;i++) {
       if(connections[i]==NULL)
@@ -142,7 +144,6 @@ int main_process(int argc,char **argv)
 	connections[i]->last_state=current_time;
 	if(connections[i]->rxstat==ST_NONE)
 	  connections[i]->rxstat=ST_PRCS;
-	printf("--------------------read(%d)--------\n",i);
 	read_connection(i); /*try to read in general case*/
 	unblock_socket(connections[i]->socket);
 
@@ -158,7 +159,6 @@ int main_process(int argc,char **argv)
       if(/*FD_ISSET(connections[i]->socket,&twrset)*/connections[i]->rxstat==ST_DONE ) {
 	connections[i]->last_state=current_time;
 	write_connection(i); 
-	fprintf(stderr,"--> \twrote(%d)\n",i);
       }
 
 
@@ -292,14 +292,8 @@ static void parse_connection(int i) /*simply request the page*/
     connections[i]->file=create_file_session(page->filename,4096);
   page->ref++;
 
-  fprintf(stderr,"parse_connection(%d)\n",i);
-
   connections[i]->rxstat=ST_DONE;
   FD_CLR(connections[i]->socket,&fdrdset);
-
-  fprintf(stderr,"------------------------------------------\n");
-  dbg_print_connection_info(i);
-  fprintf(stderr,"------------------------------------------\n");
 
   return;
 }
@@ -378,8 +372,6 @@ static void read_connection(int i)
   rd=read(connections[i]->socket,connections[i]->req_ptr,
 	  MAX_MSG-connections[i]->request_len);
 
-  fprintf(stderr,"ridden %d bytes\n",rd);
-
   if(rd<=0) {
     if(rd<0) {
       if(errno==EWOULDBLOCK)
@@ -395,13 +387,14 @@ static void read_connection(int i)
     connections[i]->request_len+=rd;
   }
 
-  fprintf(stderr,"read_connection(%d)->socket=%d\n",i,connections[i]->socket);
+#ifdef _DEBUG_
   dbg_print_connection_info(i);
+#endif
 
   return;
 }
 
-static void new_connection(void)
+static int new_connection(void)
 {
   int i,cl;
   socklen_t rin_len;
@@ -418,6 +411,7 @@ static void new_connection(void)
     cl=accept(sock,(struct sockaddr *) &rin,&rin_len);
     fprintf(stderr,"Too many connections. Dropping connection.\n");
     close(cl);
+    return -1;
   } else {
     if(!connections[i]) {
       connections[i]=calloc(1,sizeof(struct connection_t));
@@ -445,12 +439,14 @@ static void new_connection(void)
       fprintf(stderr,"Accept failed.\n");
       perror("accept() :");
       connections[i]->socket=-1;
+      return -1;
     } else {
       if(fcntl(connections[i]->socket,F_SETFL,
 	       fcntl(connections[i]->socket,F_SETFL,0) | FNDELAY) < 0) {
 	fprintf(stderr,"fcntl failed.\n");
 	close(connections[i]->socket);
 	connections[i]->socket=-1;
+	return -1;
       } else {
 	if(setsockopt(connections[i]->socket,SOL_SOCKET,SO_REUSEADDR,
 		      (char *) &o, sizeof(int))==-1)
@@ -463,7 +459,7 @@ static void new_connection(void)
 
   fprintf(stderr,"new_connection(%d)->socket=%d\n",i,connections[i]->socket);    
 
-  return;
+  return connections[i]->socket;
 }
 
 static void sigint_handler(int signal_number)
