@@ -33,6 +33,7 @@ install:
 	@mkdir -p /usr/local/bin
 	@mkdir -p /usr/local/share/redleaf
 	@mkdir -p /usr/local/etc/redleaf
+	@mkdir -p /usr/local/share/redleaf/www
 	@echo "INS: stripping binary ..."
 	@strip redleafd
 	@echo "INS: copying files ..."

@@ -38,6 +38,7 @@
 #include <misc.h>
 #include <page.h>
 #include <ctype.h>
+#include <conf.h>
 
 #define _DEBUG_  1
 
@@ -157,11 +158,20 @@ struct page_t *page_t_generate(char *request)
     char *uri=strdup(req);
     char *date=get_rfc1123date(time(NULL));
     char *head=malloc(sizeof(char)*512);
+    char *root_dir=get_general_value("root_dir");
     size_t length;
-    int fd;
-    filename=getcwd(filename,0);
-    filename=realloc(filename,strlen(filename)+strlen(req)+sizeof(char));
-    filename=strcat(filename,req);
+    int fd,root_tsize=0;
+
+    if(!root_dir) {
+      filename=getcwd(filename,0);
+      filename=realloc(filename,strlen(filename)+strlen(req)+sizeof(char)*2);
+      filename=strcat(filename,req);
+    } else {
+      root_tsize=strlen(root_dir)+2*sizeof(char)+strlen(req);
+      filename=malloc(root_tsize);
+      snprintf(filename,root_tsize,"%s/%s",root_dir,req);
+    }
+
     page=create_page_t(uri,NULL,NULL,filename,OK);
 
     if(stat(page->filename,&ystat)==-1) { /*oops*/
