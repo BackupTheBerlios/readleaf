@@ -229,7 +229,7 @@ static void write_connection(int i)
       connections[i]->hb_switch=SS_FILE;
     else {
       connections[i]->wxstat=ST_DONE;
-      FD_CLR(connections[i]->socket,&fdwrset);
+      FD_CLR(connections[i]->socket,&fdrdset);
       return;
     }
   }
@@ -241,7 +241,7 @@ static void write_connection(int i)
     if(res<0) {
       fprintf(stderr,"Error on writing to the socket.\n");
       connections[i]->wxstat=ST_ERROR;
-      FD_CLR(connections[i]->socket,&fdwrset);
+      FD_CLR(connections[i]->socket,&fdrdset);
       return;      
     }
     connections[i]->data_len-=res;
@@ -261,7 +261,7 @@ static void write_connection(int i)
     if(res<0) {
       fprintf(stderr,"Error on writing to the socket.\n");
       connections[i]->wxstat=ST_ERROR;
-      FD_CLR(connections[i]->socket,&fdwrset);
+      FD_CLR(connections[i]->socket,&fdrdset);
       return;      
     }
     connections[i]->data_len-=res;
@@ -273,7 +273,7 @@ static void write_connection(int i)
     destroy_file_session(connections[i]->file);
     connections[i]->file=NULL;
     connections[i]->wxstat=ST_DONE;
-    FD_CLR(connections[i]->socket,&fdwrset);
+    FD_CLR(connections[i]->socket,&fdrdset);
   }
   
   

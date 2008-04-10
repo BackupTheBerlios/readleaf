@@ -34,6 +34,7 @@ char *get_general_value(const char *name);
 struct variable *get_module_variables(const char *module);
 struct variable *get_directory_variables(const char *directory);
 struct variable *get_virtualhost_variables(const char *virtualhost);
+struct variable *get_mimetype_variables(const char *typ);
 
 /*----init-------*/
 /*init default general values*/

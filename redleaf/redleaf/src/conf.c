@@ -127,6 +127,11 @@ struct variable *get_virtualhost_variables(const char *virtualhost)
   return get_section_variables("VirtualHost",virtualhost);
 }
 
+struct variable *get_mimetype_variables(const char *typ)
+{
+  return get_section_variables("Mime",typ);
+}
+
 void load_configuration(char *buffer,int size)
 {
 
@@ -256,7 +261,7 @@ static int read_syn_tree(char *buffer,int size)
           uui++;
           i++;sl--;
         }
-        local_tree[ss].vv[++i].var=NULL;
+        local_tree[ss].vv[i].var=NULL;
         free((*tsect).data);
       }
     }

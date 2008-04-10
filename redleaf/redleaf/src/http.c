@@ -235,7 +235,7 @@ void free_http_request(struct http_request *p)
   return;
 }
 
-static char *mime_type(char *path)
+static char *_st_mime_type(char *path)
 {
   char *d=NULL;
   d=strrchr(path,'.');
@@ -245,6 +245,8 @@ static char *mime_type(char *path)
     return "text/html";
   else if(!strcasecmp(d,".htm"))
     return "text/html";
+  else if(!strcasecmp(d,".css"))
+    return "text/css";
   else if(!strcasecmp(d,".txt"))
     return "text/plain";
   else if(!strcasecmp(d,".text"))
@@ -291,6 +293,27 @@ static char *mime_type(char *path)
     return "application/ps";
   else if(!strcasecmp(d,".dvi"))
     return "application/x-dvi";
+  else if(!strcasecmp(d,".css"))
+    return "text/css";
+  return "text/plain";
+}
+
+static char *mime_type(char *path)
+{
+  char *d=NULL;
+  struct variable *u=get_mimetype_variables("type");
+  struct variable *o=u;
+
+  d=strrchr(path,'.');
+  if(!d)    return "text/plain";
+  if(!u)    return _st_mime_type(path);
+
+  while(o->var!=NULL) {
+    if(!strcasecmp(d,o->var))
+      return o->value;
+    o++;
+  }
+
   return "text/plain";
 }
 
