@@ -26,6 +26,7 @@
 #include <sys/socket.h>
 #include <sys/types.h>
 #include <sys/wait.h>
+#include <sys/mman.h>
 #include <netinet/in.h>
 #include <netdb.h>
 #include <string.h>
@@ -48,6 +49,18 @@
 #define _DEBUG_  0 /*debug info macro*/
 #undef _DEBUG_
 
+/*
+ * This structure used for balancing purposes
+ * if we will have many childs at one time, we can 
+ * expect many time loss in the case of the kernel
+ * checking.
+ */
+struct load_chld_t {
+  int st; /*state info, also reserved for flags*/
+  unsigned long curr_conn; /*current connections on child*/
+  unsigned long total_conn; /*total connections passed to child*/
+};
+
 /*local varios variables*/
 static struct connection_t **connections=NULL;
 static int total_connections=0;
@@ -55,8 +68,13 @@ static int max_connections=0;
 static int sock=-1;
 static fd_set fdrdset,fdwrset;
 static time_t current_time;
+static pid_t *chlds=NULL;
+static struct load_chld_t *load_chld; /*Shared for all childs*/
 
 /*local functions prototypes*/
+static int _serv_proc(int sock,int max_conn,int id);
+static int __make_chld(int sock,int max_conn,int id);
+static void __sigint_handler(int sig_num);
 static void sigint_handler(int signal_number);
 static void sigchld_handler(int signal_number);
 static void sigpipe_handler(int signal_number);
@@ -70,17 +88,15 @@ static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port);
 static int cr_sock(uint16_t p,const char *host);
 static int shutdown_socket(void);
 static int unblock_socket(int sk);
-/*debug outpur functions*/
+/*debug output functions*/
+#ifdef _DEBUG_
 static void dbg_print_connection_info(int i);
+#endif
 
 int main_process(int argc,char **argv) 
 {
-  fd_set trdset,twrset;
-  int i;
-  struct timeval tm;
-
   char *cnf_value=get_general_value("port");
-  int port_n=8080;
+  int port_n=8080,i;
 
   if(cnf_value) 
     port_n=atoi(cnf_value);
@@ -90,24 +106,84 @@ int main_process(int argc,char **argv)
   sock=cr_sock(port_n,(cnf_value==NULL) ? "localhost" : cnf_value);
   if(sock==-1)
     exit(3);
-  if(listen(sock,1)<0) {
+  if(listen(sock,128)<0) {
     fprintf(stderr,"Error on socket listening.\n");
     shutdown_socket();
     exit(3);
   }
 
-  unblock_socket(sock);
+  //  unblock_socket(sock);
 
   cnf_value=get_general_value("max_clients");
 
   port_n=(cnf_value==NULL) ? MAX_CONNECTIONS : atoi(cnf_value);
-
-  init_connections(port_n);
   max_connections=port_n;
 
+  chlds=malloc(max_connections*sizeof(pid_t));
+  if(!chlds) {
+    fprintf(stderr,"Error allocating memory.\n");
+    shutdown_socket();
+    exit(-1);
+  }
+
+  /*init structure used for balancing*/
+  load_chld=mmap(0,sizeof(struct load_chld_t)*(max_connections/2),PROT_READ | PROT_WRITE,
+		 MAP_ANON | MAP_SHARED,-1,0);
+  for(i=0;i<=max_connections/2;i++) {
+    load_chld[i].st=1;
+    load_chld[i].curr_conn=0;
+    load_chld[i].total_conn=0;
+  }
+
+  for(i=0;i<=max_connections/2;i++)
+    chlds[i]=__make_chld(sock,max_connections,i);
+
   /*add signal handling*/
+  signal(SIGINT,__sigint_handler);
+  signal(SIGPIPE,sigpipe_handler);
+
+  for(;;) {
+#ifdef _DEBUG_
+    for(i=0;i<=max_connections/2;i++) {
+      fprintf(stderr,"Child<%d> info::\n\tState: %d\n",i,load_chld[i].st);
+      fprintf(stderr,"\tCurrent connections: %ld\n",load_chld[i].curr_conn);
+      fprintf(stderr,"\tTotal passed connections: %ld\n",load_chld[i].total_conn);
+    }
+
+    sleep(10);
+#endif
+    pause();
+  }
+
+  munmap(load_chld,sizeof(struct load_chld_t)*(max_connections/2));
+  
+  return 0;
+}
+
+/*================implementation==============================*/
+
+static int __make_chld(int sock,int max_conn,int id)
+{
+  pid_t pid;
+
+  if((pid=fork())>0)
+    return pid;
+
   signal(SIGINT,sigint_handler);
   signal(SIGPIPE,sigpipe_handler);
+
+  _serv_proc(sock,max_conn,id);
+
+  return 0;
+}
+
+static int _serv_proc(int sock,int max_conn,int id)
+{
+  fd_set trdset,twrset;
+  struct timeval tm;
+  int i;
+
+  init_connections(max_conn);
 
   current_time=time(NULL);
 
@@ -130,10 +206,12 @@ int main_process(int argc,char **argv)
       exit(3);
     }
 
-    if(FD_ISSET(sock,&trdset)) /*try to create new connection*/
+    if(FD_ISSET(sock,&trdset)) {/*try to create new connection*/
+      load_chld[id].curr_conn++;
+      load_chld[id].total_conn++;
       new_connection();
+    }
     
-
     for(i=0;i<max_connections;i++) {
       if(connections[i]==NULL)
 	break;
@@ -145,7 +223,7 @@ int main_process(int argc,char **argv)
 	if(connections[i]->rxstat==ST_NONE)
 	  connections[i]->rxstat=ST_PRCS;
 	read_connection(i); /*try to read in general case*/
-	unblock_socket(connections[i]->socket);
+	//unblock_socket(connections[i]->socket);
 
 	if(connections[i]->rxstat==ST_PRCS) /*parse if necessary*/
 	  parse_connection(i); 
@@ -167,16 +245,16 @@ int main_process(int argc,char **argv)
 	  connections[i]->rxstat==ST_TIMEOUT ||
 	  connections[i]->rxstat==ST_DONE) &&
 	 (connections[i]->wxstat==ST_ERROR ||
-	  connections[i]->wxstat==ST_DONE))
+	  connections[i]->wxstat==ST_DONE)){
+	load_chld[id].curr_conn--;
 	close_connection(i); 
+      }
     }
     
   }
-    
+
   return 0;
 }
-
-/*================implementation==============================*/
 
 static void close_connection(int i)
 {
@@ -298,6 +376,8 @@ static void parse_connection(int i) /*simply request the page*/
   return;
 }
 
+#ifdef _DEBUG_
+
 static void dbg_print_connection_info(int i)
 {
   char *buf=malloc(64);
@@ -360,6 +440,8 @@ static void dbg_print_connection_info(int i)
 
   return;
 }
+
+#endif /*_DEBUG_*/
 
 static void read_connection(int i)
 {
@@ -472,6 +554,21 @@ static void sigint_handler(int signal_number)
   return;
 }
 
+static void __sigint_handler(int sig_num)
+{
+  int i;
+ 
+  for(i=0;i<=max_connections/2;i++) 
+    kill(chlds[i],SIGINT);
+  while(wait(NULL)>0) ;
+
+  munmap(load_chld,sizeof(struct load_chld_t)*(max_connections/2));
+
+  exit(0);
+
+  return;
+}
+
 static void sigchld_handler(int signal_number)
 {
   while (waitpid(-1,&signal_number,WNOHANG) > 0) ;
@@ -513,7 +610,7 @@ static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port)
 
 static int cr_sock(uint16_t p,const char *host)
 {
-  int sk;
+  int sk,n=1;
   struct sockaddr_in s;
 
   sk=socket(PF_INET,SOCK_STREAM,0);
@@ -521,12 +618,16 @@ static int cr_sock(uint16_t p,const char *host)
     fprintf(stderr,"Error createting socket.\n");
     return -1;
   }
+
+  setsockopt(sk,SOL_SOCKET,SO_REUSEADDR,&n,sizeof(n));
+
   i_saddr(&s,host,PORT);
   if(bind(sk,(struct sockaddr *)&s,sizeof(s))<0) {
     perror("bind");
     fprintf(stderr,"Error on binding socket.\n");
     return -1;
   }
+
   return sk;
 }
 
