@@ -621,7 +621,7 @@ static int cr_sock(uint16_t p,const char *host)
 
   setsockopt(sk,SOL_SOCKET,SO_REUSEADDR,&n,sizeof(n));
 
-  i_saddr(&s,host,PORT);
+  i_saddr(&s,host,p);
   if(bind(sk,(struct sockaddr *)&s,sizeof(s))<0) {
     perror("bind");
     fprintf(stderr,"Error on binding socket.\n");
