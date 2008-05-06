@@ -60,11 +60,17 @@ struct file_session_t *create_file_session(const char *filename,size_t buf_len)
   p->fd=open(filename,O_RDONLY);
   if(p->fd==-1) {
     fprintf(stderr,"Error opening file `%s'\n",filename);
+  _open_fail:
+    free(p->filename);
     free(p->buf);
     free(p);
     return NULL;
   }
-  stat(p->filename,&st);
+  if(stat(p->filename,&st)) {
+    fprintf(stderr,"Error stat file `%s'\n",filename);
+    perror("stat:");
+    goto _open_fail;
+  }
   p->file_len=st.st_size;
 
   return p;
@@ -77,7 +83,10 @@ void destroy_file_session(struct file_session_t *p)
   if(p->filename)
     free(p->filename);
 
-  close(p->fd);
+  if(close(p->fd)) {
+    fprintf(stderr,"Warning: error closing file descriptor.\n");
+    perror("close:");
+  }
 
   free(p);
 
@@ -86,19 +95,28 @@ void destroy_file_session(struct file_session_t *p)
 
 void updoffset_file_session(struct file_session_t *p,off_t offset)
 {
-  p->cur_off=offset;
-  lseek(p->fd,offset,SEEK_SET);
+  if(lseek(p->fd,offset,SEEK_SET)!=offset)
+    perror("lseek:");
+  else
+    p->cur_off=offset;
+
   return;
 }
 
 void *read_file_session(struct file_session_t *p,size_t *chunk_len)
 {
+  size_t cl=0;
+
   if(p->buf_len+p->cur_off > p->file_len)
     *chunk_len=p->file_len-p->cur_off;
   else 
     *chunk_len=p->buf_len;
 
-  read(p->fd,p->buf,*chunk_len);
+  if((cl=read(p->fd,p->buf,*chunk_len))==-1) {
+    fprintf(stderr,"Error reading from file `%s'\n",p->filename);
+    perror("read:");
+    return NULL;
+  } 
 
   return p->buf;
 }
