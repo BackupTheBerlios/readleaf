@@ -1,0 +1,7 @@
+0.1alpha1:
+ = changed IPC model to poll of pre-forked childrens
+ = fixed potential bugs
+ = add checking (not in all places)
+ = added "serios" stuff
+ = improvments on build 'system'
+ 
