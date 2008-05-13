@@ -5,9 +5,11 @@ PREFIX=/usr/local
 ETCDIR=/usr/local/etc
 SHAREDIR=${PREFIX}/share/redleaf
 
-defaults: src/redleafd
+all: defaults
 
-src/redleafd:
+defaults: redleafd
+
+redleafd: 
 	@echo "BLD: Compiling redleafd ..."
 	@cd src; make
 
