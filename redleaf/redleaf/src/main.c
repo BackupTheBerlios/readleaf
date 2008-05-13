@@ -31,7 +31,7 @@
 #include <page.h>
 #include <misc.h>
 
-#include "config.h"
+#include "../config.h"
 
 #define CONF_NAME_  "example.conf"
 
