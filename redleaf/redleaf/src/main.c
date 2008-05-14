@@ -35,6 +35,14 @@
 
 #define CONF_NAME_  "example.conf"
 
+static void _print_version(void)
+{
+  fprintf(stdout,"RedLeaf httpd version: %d.%d-%s\n",
+	  VER_MAJOR,VER_MINOR,VER_SUFFIX);
+  fprintf(stdout,"Development tree: %s\n\n",VER_TREE);
+  return;
+}
+
 int main(int argc, char **argv)
 {
   int size,cfsize;
@@ -42,10 +50,21 @@ int main(int argc, char **argv)
   char *cnfnm=NULL;
   char *dd=NULL;
 
-  if(argc>2) {
+  if(argc>=2) {
     dd=argv[1];
-    if(*dd=='-' && !strcmp(dd,"-c"))
+    if(*dd=='-' && !strcmp(dd,"-c")) {
+      if(argv[2]==NULL) {
+	fprintf(stderr,"No parameter given for option.\nExiting.\n");
+	return 0;
+      }
       cnfnm=argv[2];
+    } else if(*dd=='-' && !strcmp(dd,"-v")) {
+      _print_version();
+      return 0;
+    } else {
+      fprintf(stderr,"Unknown option or argument `%s'.\nExiting.\n",dd);
+      return 0;
+    }
   } else {
     cfsize=strlen(CONF_NAME_)+strlen(PREFIX_PATH)+strlen(ETC_PATH)+1;
     cnfnm=malloc(cfsize*sizeof(char));
@@ -54,6 +73,7 @@ int main(int argc, char **argv)
       return -1;
     }
     snprintf(cnfnm,cfsize,"%s%s%s",PREFIX_PATH,ETC_PATH,CONF_NAME_);
+    printf("cn: %s\n",cnfnm);
   }
 
   buf=(char*)mmap_file(cnfnm,&size);

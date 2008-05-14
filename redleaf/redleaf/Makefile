@@ -19,9 +19,9 @@ install: src/redleafd
 	@mkdir -p ${SHAREDIR}/www
 	@mkdir -p ${ETCDIR}/redleaf
 	@echo "INS: stripping binary ..."
-	@strip redleafd
+	@strip src/redleafd
 	@echo "INS: copying files ..."
-	@cp redleafd ${PREFIX}/bin/redleafd
+	@cp src/redleafd ${PREFIX}/bin/redleafd
 	@cp example.conf ${ETCDIR}/redleaf/example.conf
 	@echo "INS: done"
 

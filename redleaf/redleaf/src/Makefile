@@ -28,16 +28,5 @@ clean:
 	@echo "RM: redleafd"
 	@rm -f redleafd
 
-install:
-	@echo "INS: creating directories ..."
-	@mkdir -p /usr/local/bin
-	@mkdir -p /usr/local/share/redleaf
-	@mkdir -p /usr/local/etc/redleaf
-	@mkdir -p /usr/local/share/redleaf/www
-	@echo "INS: stripping binary ..."
-	@strip redleafd
-	@echo "INS: copying files ..."
-	@cp redleafd /usr/local/bin/redleafd
-	@cp example.conf /usr/local/etc/redleaf/example.conf
-	@echo "INS: done"
+
 
