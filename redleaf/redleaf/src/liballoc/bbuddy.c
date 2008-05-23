@@ -35,7 +35,7 @@
 
 /* local functions prototypes */
 static int16_t __red_bt(reg_desc_t *r,u_int8_t p,u_int8_t l);
-static int __reg_bt(reg_desc_t *r,u_int8_t p);
+static int16_t __reg_bt(reg_desc_t *r,u_int8_t p);
 static int __get_offset(reg_desc_t *r,u_int8_t p);
 #ifdef _DEBUG_
 static void __print_bitmap(u_int8_t size,u_int64_t o);
@@ -76,7 +76,7 @@ int __init_reg_desc(reg_desc_t *ss,void *p,u_int16_t size) /*init region descrip
 void *__blalloc_ireg(reg_desc_t *r,u_int16_t byte) /* allocate block within region*/
 {
   u_int16_t block_size,i=0;
-  int offset;
+  u_int16_t offset;
 
   if(!r) {
 #ifdef _DEBUG_
@@ -108,8 +108,9 @@ void *__blalloc_ireg(reg_desc_t *r,u_int16_t byte) /* allocate block within regi
 
 void __blfree_ireg(reg_desc_t *r,void *p) /* free block within given region */
 {
-  int offset,i;
-  int blk=0,off,n,area;
+  u_int32_t offset;
+  u_int8_t i;
+  u_int8_t blk=0,off,n,area;
 
   if(!r) {
 #ifdef _DEBUG_
@@ -227,8 +228,7 @@ void *__blrealloc_ireg(reg_desc_t *r,void *p,u_int16_t size) /* reallocate block
 /* local functions implementation */
 static int16_t __red_bt(reg_desc_t *r,u_int8_t p,u_int8_t l)
 {
-  int off=l,area=l/(8*(sizeof(u_int32_t))),i;
-  int q,a;
+  u_int8_t q,a,i,area=l/(8*(sizeof(u_int32_t))),off=l;
 
   if(!l) {
 #ifdef _DEBUG_
@@ -280,14 +280,14 @@ static int16_t __red_bt(reg_desc_t *r,u_int8_t p,u_int8_t l)
   return -1;
 }
 
-static int __reg_bt(reg_desc_t *r,u_int8_t p)
+static int16_t __reg_bt(reg_desc_t *r,u_int8_t p)
 {
   return __red_bt(r,p,p);
 }
 
 static int __get_offset(reg_desc_t *r,u_int8_t p)
 {
-  int voffset;
+  int16_t voffset;
 
   if((voffset=__reg_bt(r,p))<0) {
 #ifdef _DEBUG_
