@@ -14,7 +14,7 @@ default: all
 	@echo "CC: $*.o"
 	@gcc $(CFLAGS) -I${INCLUDES} -c -o $*.o $< 
 
-libdata.a: $(OBJS)
+liballoc.a: $(OBJS)
 	@ar rcs liballoc.a $(OBJS)
 
 all: liballoc.a

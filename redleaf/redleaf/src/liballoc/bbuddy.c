@@ -76,7 +76,7 @@ int __init_reg_desc(reg_desc_t *ss,void *p,u_int16_t size) /*init region descrip
 void *__blalloc_ireg(reg_desc_t *r,u_int16_t byte) /* allocate block within region*/
 {
   u_int16_t block_size,i=0;
-  u_int16_t offset;
+  u_int32_t offset;
 
   if(!r) {
 #ifdef _DEBUG_
