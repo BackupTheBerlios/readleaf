@@ -70,8 +70,10 @@ char *read_dir_contents(const char *filename,const char *uri)
   }
   sprintf(outbuf,LSHEAD,uri,uri);
   for(i=0;i<=total_files;i++) {
-    sprintf(tbuf,LSENTRY,_uri,dlist[i],dlist[i]);
-    outbuf=strcat(outbuf,tbuf);
+    if(dlist[i]) {
+      sprintf(tbuf,LSENTRY,_uri,dlist[i],dlist[i]);
+      outbuf=strcat(outbuf,tbuf);
+    }
   }
   outbuf=strcat(outbuf,LSBOTTOM);
 
@@ -93,17 +95,19 @@ static char **read_dir_list(const char *path)
   DIR *dir;
   struct dirent *entry=malloc(sizeof(struct dirent));
 
-  total_files=-1;
+  total_files=0;
   dir=opendir(path);
   while((entry=readdir(dir))) {
     if(!strcmp(entry->d_name,"."))
       continue;
-    total_files++;
-    if(total_files/256>=1 && total_files%256==0)
-      list=realloc(list,sizeof(char)*(((total_files/256)+1)*256));
-    list[total_files]=strdup(entry->d_name);
+    else {
+      total_files++;
+      if(total_files/256>=1 && total_files%256==0)
+	list=realloc(list,sizeof(char)*(((total_files/256)+1)*256));
+      list[total_files]=strdup(entry->d_name);
+    }
   }
-  qsort(list,total_files-1,sizeof(char *),qsort_cmp_by_name);
+  qsort(list,total_files,sizeof(char *),qsort_cmp_by_name);
   list[total_files+1]=NULL;
   closedir(dir);
   free(entry);
