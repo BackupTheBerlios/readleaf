@@ -75,3 +75,18 @@ char *get_rfc1123date(time_t t)
 
   return obuf;
 }
+
+int norm_slash_uri(char *uri)
+{
+  char *bt=uri;
+  int i=strlen(uri)-1;
+
+  while(bt[i]=='/' || i>=1) {
+    if(bt[i-1]=='/') {
+      bt[i]='\0'; i--;
+    } else
+      break;
+  }
+
+  return 0;
+}

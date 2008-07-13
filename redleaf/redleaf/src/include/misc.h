@@ -29,5 +29,7 @@ void munmap_file(void *buf,int size);
 
 char *get_rfc1123date(time_t t);
 
+int norm_slash_uri(char *uri);
+
 #endif
 
