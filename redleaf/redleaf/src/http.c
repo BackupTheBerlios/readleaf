@@ -44,11 +44,11 @@
 
 /*page macros*/
 #define NOTFOUND_PAGE  "<html><head><title>NOT FOUND on this server.</title></head> \
-<body><h1>Requested document not found.</h1><hr>%s not found.<hr>RedLeaf v0.1a</body></html>"
+<body><h1>Requested document not found.</h1><hr>%s not found.<hr>RedLeaf v0.1b</body></html>"
 #define FORBIDDEN_PAGE  "<html><head><title>FORBIDDEN.</title></head> \
-<body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.1a</body></html>"
+<body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.1b</body></html>"
 #define INTERNAL_SERVER_ERROR_PAGE  "<html><head><title>Internal server error \
-</title></head><body><h1>Internal Server Error</h1><hr>RedLeaf v0.1a</body>"
+</title></head><body><h1>Internal Server Error</h1><hr>RedLeaf v0.1b</body>"
 
 /*bad request page, doesn't cached it's a static*/
 struct page_t *bad_request_page = NULL;
@@ -181,7 +181,6 @@ struct page_t *page_t_generate(char *request)
 	snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
       } else tfn=strdup(root_dir);
     }
-    if(stat(tfn,&ystat)==-1)    goto error_lock;
     if(S_ISDIR(ystat.st_mode)) { /*is dir,check for index*/
       yys+=strlen("index.html")+2*sizeof(char);
       chkfile=rl_malloc(yys);
@@ -350,7 +349,7 @@ static struct page_t *generate_bad_request_page(void)
 {
   char *data;
   char *head="HTTP/1.1 400 Bad Request\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n";
-  char *body="<html><head><title>400 Bad Request:</title></head><body><h1>Bad Request</h1><br>Your client made unresolved request.<hr>Redleaf v0.1a</body></html>";
+  char *body="<html><head><title>400 Bad Request:</title></head><body><h1>Bad Request</h1><br>Your client made unresolved request.<hr>Redleaf v0.1b</body></html>";
   int head_len=strlen(head);
   int body_len=strlen(body);
   bad_request_page=malloc(sizeof(struct page_t));
