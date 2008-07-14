@@ -30,6 +30,8 @@
 #include <fcntl.h>
 #include <time.h>
 
+#include <misc.h>
+
 #define DATELEN  64
 
 char *wkday[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
@@ -43,7 +45,7 @@ void *mmap_file(const char *filename,int *size)
   struct stat buf;
   void *out=NULL;
 
-  fd=open(filename,O_RDONLY);
+  fd=open(filename,O_RDONLY); /*TODO: make check*/
   fstat(fd,&buf);
   out=mmap(NULL,buf.st_size,PROT_READ,MAP_PRIVATE,fd,0);
   *size=buf.st_size;
@@ -65,7 +67,7 @@ char *get_rfc1123date(time_t t)
   struct tm *tm;
   char *obuf=NULL;
 
-  obuf=malloc(DATELEN);
+  obuf=rl_malloc(DATELEN);
   tm=localtime(&t);
   if(!obuf)
     return NULL;
@@ -90,3 +92,51 @@ int norm_slash_uri(char *uri)
 
   return 0;
 }
+
+void *rl_malloc(size_t size)
+{
+  void *v=malloc(size);
+
+  if(!v) {
+    fprintf(stderr,"Error allocating memory for %d bytes.\n",(int)size);
+    exit(3);
+    return NULL;
+  }
+
+  return v;
+}
+
+void *rl_realloc(void *p,size_t size)
+{
+  p=realloc(p,size);
+
+  if(!p) {
+    fprintf(stderr,"Error re-allocating memory with new size %d bytes.\n",(int)size);
+    exit(3);
+    return NULL;
+  }
+
+  return p;
+}
+
+void *rl_calloc(size_t n,size_t size)
+{
+  void *v=calloc(n,size);
+
+  if(!v) {
+    fprintf(stderr,"Error allocating %d blocks with %d size.\n",(int)n,(int)size);
+    exit(3);
+    return NULL;
+  }
+
+  return v;
+}
+
+void *rl_free(void *p)
+{
+  if(p)    free(p);
+  else     fprintf(stderr,"Trying to free nil pointer.\n");
+
+  return NULL;
+}
+

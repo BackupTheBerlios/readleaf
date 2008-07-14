@@ -10,6 +10,6 @@
 #define VER_MAJOR   0
 #define VER_MINOR   1
 #define VER_TREE    "autumn changes"
-#define VER_SUFFIX  "alpha1"
+#define VER_SUFFIX  "beta"
 
 #endif

@@ -107,7 +107,9 @@ struct page_t *page_t_generate(char *request)
   struct page_t *page=NULL;
   struct http_request *ht_req=parse_http_request(request);
   struct stat ystat;
-  char *filename=NULL;
+  char *filename=NULL,*tfn=NULL;
+  char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
+  int yys=0;
 
   if(!ht_req) {
     fprintf(stderr,"Request not parsed!\n");
@@ -124,6 +126,7 @@ struct page_t *page_t_generate(char *request)
   }
   req=ht_req->uri;
   decode_uri(req);
+
   page=lookup_cache(req);
   if(page) { /*located in cache*/
     if(page->ref!=0) /*if it's currently used via connection - return it*/
@@ -158,21 +161,47 @@ struct page_t *page_t_generate(char *request)
     char *uri=strdup(req);
     char *date=get_rfc1123date(time(NULL));
     char *head=malloc(sizeof(char)*512);
-    char *root_dir=get_general_value("root_dir");
     size_t length;
-    int fd,root_tsize=0;
+    int fd;
 
-    if(!root_dir) {
-      filename=getcwd(filename,0);
-      filename=realloc(filename,strlen(filename)+strlen(req)+sizeof(char)*2);
-      filename=strcat(filename,req);
+    /*look out for an index*/
+    if(!root_dir) { /*get real requested filename*/
+      tfn=getcwd(tfn,0);
+      tfn=rl_realloc(tfn,strlen(tfn)+strlen(req)+sizeof(char)*2);
+      tfn=strcat(tfn,req);
     } else {
-      root_tsize=strlen(root_dir)+2*sizeof(char)+strlen(req);
-      filename=malloc(root_tsize);
-      snprintf(filename,root_tsize,"%s/%s",root_dir,req);
+      yys=sizeof(char)*(strlen(req)+strlen("/")+strlen(root_dir)+2);
+      tfn=rl_malloc(yys);
+      if(!tfn) {
+	fprintf(stderr,"Error allocating memory.(page_t_generate)\n");
+	exit(3);
+      }
+      if(strcmp(req,"/")){
+	req+=sizeof(char);
+	snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
+      } else tfn=strdup(root_dir);
     }
-
+    if(stat(tfn,&ystat)==-1)    goto error_lock;
+    if(S_ISDIR(ystat.st_mode)) { /*is dir,check for index*/
+      yys+=strlen("index.html")+2*sizeof(char);
+      chkfile=rl_malloc(yys);
+      if(!chkfile) {
+	fprintf(stderr,"Error allocating memory.(page_t_generate)\n");
+      }
+      snprintf(chkfile,yys,"%s/%s",tfn,"index.html");
+      if(stat(chkfile,&ystat)==-1) {
+	filename=tfn;
+	rl_free(chkfile);
+      } else {
+	filename=chkfile;
+	rl_free(tfn);
+      }
+    } else filename=tfn;
+    
+    norm_slash_uri(filename);
+    
     page=create_page_t(uri,NULL,NULL,filename,OK);
+    printf("filename=%s\n",filename);
 
     if(stat(page->filename,&ystat)==-1) { /*oops*/
       free(date);
@@ -192,7 +221,7 @@ struct page_t *page_t_generate(char *request)
       if(S_ISREG(ystat.st_mode)) { /*yep, file*/
 	length=ystat.st_size;
 	sprintf(head,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-Length: %ld\nContent-type: %s\n\n",
-		date,(long int)length,mime_type(uri));
+		date,(long int)length,mime_type(filename));
 	page->head=head;
 	page->head_len=strlen(head);
 	if(length<=4096) { /*read this*/

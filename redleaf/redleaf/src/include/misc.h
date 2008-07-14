@@ -31,5 +31,11 @@ char *get_rfc1123date(time_t t);
 
 int norm_slash_uri(char *uri);
 
+/*wrappers for memory related functions*/
+void *rl_malloc(size_t size);
+void *rl_realloc(void *p,size_t size);
+void *rl_calloc(size_t n,size_t size);
+void *rl_free(void *p);
+
 #endif
 

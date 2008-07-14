@@ -2,13 +2,15 @@
 # makefile for redleaf sources
 
 SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c page.c file.c
+HEADERS=include/http.h include/conf.h include/file.h include/misc.h \
+	include/serv.h include/file.h include/http_read_dir.h
 CFLAGS=-g -Wall
 OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o file.o libdata/libdata.a
 INCLUDES+=include/
 
 all: defaults
 
-defaults: redleafd
+defaults: redleafd $(HEADERS)
 
 .c.o: $(SOURCES)
 	@echo "CC: $*.o"

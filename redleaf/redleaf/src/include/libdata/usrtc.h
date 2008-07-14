@@ -23,7 +23,7 @@
 #ifndef __USRTC_H__
 #define __USRTC_H__
 
-#define USRTC_COUNT_T_MAX  ((1 << (sizeof(unsigned long)*8))-1)
+#define USRTC_COUNT_T_MAX  ((1 << (sizeof(unsigned long)*(sizeof(char) << 1)))-1)
 
 /*count and some misc typedefs*/
 typedef unsigned long usrtc_count_t;

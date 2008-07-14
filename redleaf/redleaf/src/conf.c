@@ -28,6 +28,7 @@
 #include <ctype.h>
 
 #include <conf.h>
+#include <misc.h>
 
 /*TODO: fix the bugs, add additional checking*/
 /*
@@ -147,7 +148,7 @@ void load_configuration(char *buffer,int size)
 /*implementation*/
 static int read_syn_tree(char *buffer,int size)
 {
-  char *buf=malloc(sizeof(char)*size),*tbuf=buffer,*fbuf=buf;
+  char *buf=rl_malloc(sizeof(char)*size),*tbuf=buffer,*fbuf=buf;
   int b_size=size;
   int ss=0,es=0,sl=0;
   struct __conf_section *cnf_section=NULL,*tsect;
@@ -196,7 +197,7 @@ static int read_syn_tree(char *buffer,int size)
   }
 
   fbuf=buf;es=0;
-  cnf_section=malloc(sizeof(struct __conf_section)*ss);
+  cnf_section=rl_malloc(sizeof(struct __conf_section)*ss);
   (*cnf_section).order=-1;
 #ifdef _DEBUG_
   fprintf(stderr,"starting parsing ...\n");
@@ -262,7 +263,7 @@ static int read_syn_tree(char *buffer,int size)
           i++;sl--;
         }
         local_tree[ss].vv[i].var=NULL;
-        free((*tsect).data);
+        rl_free((*tsect).data);
       }
     }
 

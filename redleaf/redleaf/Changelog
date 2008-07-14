@@ -1,8 +1,14 @@
-0.1alpha1:
- = changed IPC model to poll of pre-forked childrens
- = fixed potential bugs
- = add checking (not in all places)
- = added "serios" stuff
- = improvments on build 'system'
- = added dynamic mime types
+- version 0.1beta:
+ * added index.html index loading if it exists
+ * fixed bug with http_read_dir
+ * fixed yet another couple of bugs
+ * added memory realted functions wrappers
+ * added index.html default file
+- version 0.1alpha1:
+ * changed IPC model to poll of pre-forked childrens
+ * fixed potential bugs
+ * add checking (not in all places)
+ * added "serios" stuff
+ * improvments on build 'system'
+ * added dynamic mime types
  

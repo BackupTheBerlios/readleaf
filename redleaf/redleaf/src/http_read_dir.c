@@ -29,19 +29,15 @@
 #include <sys/stat.h>
 #include <string.h>
 
-/*TODO:
- * look&feel:
- *  - add types,sizes to the entries
- *  - add better sorting (directories first)
- * functionality:
- *  - add sorting with other methods
- *  - checking
- *  - add url decoding
+#include <misc.h>
+
+/*TODO: add better sorting (directories first), add url decoding
+ * other improvments moved to the module
  */
 
 #define LSHEAD  "<html><head><title>%s contents:</title></head><body>\
 <h1>%s directory contents:</h1><hr>\n"
-#define LSBOTTOM  "<hr>Redleaf v0.1a<br></body></html>"
+#define LSBOTTOM  "<hr>Redleaf v0.1beta<br></body></html>"
 #define LSENTRY  "<a href=\"%s/%s\">%s</a><br>\n"
 
 /*local used variables*/
@@ -63,7 +59,7 @@ char *read_dir_contents(const char *filename,const char *uri)
   int i;
 
   len+=(strlen(LSENTRY)+512)*total_files;
-  outbuf=calloc(1,len);
+  outbuf=rl_calloc(1,len);
   if(!outbuf) {
     fprintf(stderr,"Error allocating memory.\n read_dir_contents()\n");
     goto func_exit;
@@ -91,9 +87,9 @@ static int qsort_cmp_by_name(const void *a,const void *b)
 
 static char **read_dir_list(const char *path)
 {
-  char **list=malloc(sizeof(char)*256);
+  char **list=rl_malloc(sizeof(char)*256);
   DIR *dir;
-  struct dirent *entry=malloc(sizeof(struct dirent));
+  struct dirent *entry=rl_malloc(sizeof(struct dirent));
 
   total_files=0;
   dir=opendir(path);
@@ -101,16 +97,16 @@ static char **read_dir_list(const char *path)
     if(!strcmp(entry->d_name,"."))
       continue;
     else {
-      total_files++;
       if(total_files/256>=1 && total_files%256==0)
-	list=realloc(list,sizeof(char)*(((total_files/256)+1)*256));
+	list=rl_realloc(list,sizeof(char)*(((total_files/256)+1)*256));
       list[total_files]=strdup(entry->d_name);
+      total_files++;
     }
   }
   qsort(list,total_files,sizeof(char *),qsort_cmp_by_name);
   list[total_files+1]=NULL;
   closedir(dir);
-  free(entry);
+  //rl_free(entry);
 
   return list;
 }
@@ -119,7 +115,7 @@ static void free_dir_list(char **list)
 {
   int i=0;
   while(list[i]){
-    free(list[i]); i++;
+    rl_free(list[i]); i++;
   }
-  free(list);
+  rl_free(list);
 }

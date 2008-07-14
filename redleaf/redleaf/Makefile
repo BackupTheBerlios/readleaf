@@ -1,9 +1,9 @@
 # by tirra <tirra.newly@gmail.com> (c) 2007
 # RedLeaf makefile
 
-PREFIX=/usr/local
+DESTDIR=/usr/local
 ETCDIR=/usr/local/etc
-SHAREDIR=${PREFIX}/share/redleaf
+SHAREDIR=${DESTDIR}/share/redleaf
 
 all: defaults
 
@@ -15,14 +15,16 @@ redleafd:
 
 install: src/redleafd
 	@echo "INS: creating directories ..."
-	@mkdir -p ${PREFIX}/bin
+	@mkdir -p ${DESTDIR}/bin
 	@mkdir -p ${SHAREDIR}/www
 	@mkdir -p ${ETCDIR}/redleaf
 	@echo "INS: stripping binary ..."
 	@strip src/redleafd
 	@echo "INS: copying files ..."
-	@cp src/redleafd ${PREFIX}/bin/redleafd
+	@cp src/redleafd ${DESTDIR}/bin/redleafd
 	@cp example.conf ${ETCDIR}/redleaf/example.conf
+	@cp www-default/index.html ${SHAREDIR}/www/index.html
+	@cp 
 	@echo "INS: done"
 
 clean: 
