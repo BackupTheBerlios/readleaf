@@ -24,7 +24,6 @@ install: src/redleafd
 	@cp src/redleafd ${DESTDIR}/bin/redleafd
 	@cp example.conf ${ETCDIR}/redleaf/example.conf
 	@cp www-default/index.html ${SHAREDIR}/www/index.html
-	@cp 
 	@echo "INS: done"
 
 clean: 
