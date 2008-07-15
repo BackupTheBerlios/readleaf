@@ -132,10 +132,13 @@ void *rl_calloc(size_t n,size_t size)
   return v;
 }
 
-void *rl_free(void *p)
+void *__rl_free(char *file,int line,char *function,void *p)
 {
   if(p)    free(p);
-  else     fprintf(stderr,"Trying to free nil pointer.\n");
+  else     {
+    fprintf(stderr,"Trying to free nil pointer.\n");
+    fprintf(stderr,"At `%s:%d' via '%s'\n",file,line,function);
+  }
 
   return NULL;
 }

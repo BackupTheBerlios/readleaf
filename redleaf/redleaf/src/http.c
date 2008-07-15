@@ -71,10 +71,7 @@ struct http_request *parse_http_request(char *msg)
   struct http_request *p=NULL;
   char *tmsg=msg,*ttmsg;
 
-  if(!(p=malloc(sizeof(struct http_request)))) {
-    fprintf(stderr,"Enough memory for allocate the structure.\n");
-    return NULL;
-  }
+  p=rl_malloc(sizeof(struct http_request));
   init_http_request(p);
 
   if(!msg || strlen(msg)<6) {
@@ -90,7 +87,7 @@ struct http_request *parse_http_request(char *msg)
     p->op_code=BAD_REQUEST;
     return p;
   }
-  if((tmsg=strchr(msg,' ')) && (ttmsg=strchr(tmsg+1,' '))){
+  if((tmsg=strchr(msg,' ')) && (ttmsg=strchr(tmsg+sizeof(char),' '))){
     *ttmsg='\0';
     p->uri=strdup(tmsg+sizeof(char));
     *ttmsg=' ';
@@ -110,13 +107,6 @@ struct page_t *page_t_generate(char *request)
   char *filename=NULL,*tfn=NULL;
   char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
   int yys=0;
-
-  if(!ht_req) {
-    fprintf(stderr,"Request not parsed!\n");
-    if(!bad_request_page)
-      bad_request_page=generate_bad_request_page();
-    return bad_request_page;
-  }
 
   if(ht_req->op_code==BAD_REQUEST) {
     if(!bad_request_page)
@@ -160,7 +150,7 @@ struct page_t *page_t_generate(char *request)
   } else { /*so, need to be generated*/
     char *uri=strdup(req);
     char *date=get_rfc1123date(time(NULL));
-    char *head=malloc(sizeof(char)*512);
+    char *head=rl_malloc(sizeof(char)*512);
     size_t length;
     int fd;
 
@@ -172,21 +162,21 @@ struct page_t *page_t_generate(char *request)
     } else {
       yys=sizeof(char)*(strlen(req)+strlen("/")+strlen(root_dir)+2);
       tfn=rl_malloc(yys);
-      if(!tfn) {
-	fprintf(stderr,"Error allocating memory.(page_t_generate)\n");
-	exit(3);
-      }
       if(strcmp(req,"/")){
 	req+=sizeof(char);
 	snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
       } else tfn=strdup(root_dir);
     }
+    if(stat(tfn,&ystat)==-1) {
+      page=create_page_t(uri,NULL,NULL,tfn,OK);
+      rl_free(date);
+      insert_cache(page);
+      goto error_lock;
+    }
     if(S_ISDIR(ystat.st_mode)) { /*is dir,check for index*/
       yys+=strlen("index.html")+2*sizeof(char);
       chkfile=rl_malloc(yys);
-      if(!chkfile) {
-	fprintf(stderr,"Error allocating memory.(page_t_generate)\n");
-      }
+
       snprintf(chkfile,yys,"%s/%s",tfn,"index.html");
       if(stat(chkfile,&ystat)==-1) {
 	filename=tfn;
@@ -200,10 +190,9 @@ struct page_t *page_t_generate(char *request)
     norm_slash_uri(filename);
     
     page=create_page_t(uri,NULL,NULL,filename,OK);
-    printf("filename=%s\n",filename);
 
     if(stat(page->filename,&ystat)==-1) { /*oops*/
-      free(date);
+      rl_free(date);
       insert_cache(page);
       goto error_lock;
     } else {
@@ -216,8 +205,7 @@ struct page_t *page_t_generate(char *request)
 	page->head_len=strlen(head);
 	page->body=read_dir_contents(filename,uri);
 	page->bodysize=strlen(page->body);
-      }
-      if(S_ISREG(ystat.st_mode)) { /*yep, file*/
+      } else if(S_ISREG(ystat.st_mode)) { /*yep, file*/
 	length=ystat.st_size;
 	sprintf(head,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-Length: %ld\nContent-type: %s\n\n",
 		date,(long int)length,mime_type(filename));
@@ -227,7 +215,7 @@ struct page_t *page_t_generate(char *request)
 	  page->op=1;
 	  page->bodysize=length;
 	  fd=open(filename,O_RDONLY); /*TODO: make check*/
-	  page->body=malloc(length);
+	  page->body=rl_malloc(length);
 	  read(fd,page->body,length);
 	  close(fd);
 	} else { /*need to be ridden from block device*/
@@ -237,7 +225,7 @@ struct page_t *page_t_generate(char *request)
 	}
       }
     }
-    free(date);
+    rl_free(date);
     normalize_page(page);
     insert_cache(page);
   }
@@ -352,21 +340,11 @@ static struct page_t *generate_bad_request_page(void)
   char *body="<html><head><title>400 Bad Request:</title></head><body><h1>Bad Request</h1><br>Your client made unresolved request.<hr>Redleaf v0.1b</body></html>";
   int head_len=strlen(head);
   int body_len=strlen(body);
-  bad_request_page=malloc(sizeof(struct page_t));
+  bad_request_page=rl_malloc(sizeof(struct page_t));
   struct page_t *page=bad_request_page;
 
-  if(!bad_request_page) {
-    fprintf(stderr,"Error allocating memory for buffer.(http.c:generate_bad_request()#1)\n");
-    return NULL;
-  }
-
   page->uri=NULL;
-  data=malloc(head_len+body_len+1);
-  if(!data) {
-    fprintf(stderr,"Error allocating memory for buffer.(http.c:generate_bad_request()#2)\n");
-    free(bad_request_page);
-    return NULL;
-  }
+  data=rl_malloc(head_len+body_len+1);
   snprintf(data,head_len+body_len+1,"%s%s",head,body);
   page->head=page->body=data;
   page->body+=head_len;
@@ -389,8 +367,8 @@ static void gen_error_page(struct page_t *page,int err)
     denormalize_page(page);
 
   page->op=err;
-  if(page->body)    free(page->body);
-  if(page->head)    free(page->head);
+  if(page->body)    rl_free(page->body);
+  if(page->head)    rl_free(page->head);
 
   page->head=malloc(sizeof(char)*256);
 

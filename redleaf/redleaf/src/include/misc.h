@@ -35,7 +35,9 @@ int norm_slash_uri(char *uri);
 void *rl_malloc(size_t size);
 void *rl_realloc(void *p,size_t size);
 void *rl_calloc(size_t n,size_t size);
-void *rl_free(void *p);
+void *__rl_free(char *file,int line,char *function,void *p);
+#define rl_free(p)  __rl_free(__FILE__,__LINE__,__FUNCTION__,p)
+
 
 #endif
 

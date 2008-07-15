@@ -102,9 +102,7 @@ struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int 
 {
   struct page_t *page=NULL;
 
-  page=malloc(sizeof(struct page_t));
-  if(!page)
-    return NULL;
+  page=rl_malloc(sizeof(struct page_t));
   page->uri=uri;
   page->head=head;
   page->body=body;
@@ -124,14 +122,14 @@ void free_page_t(struct page_t *page)
   if(!page)
     return;
   if(page->uri)
-    free(page->uri);
+    rl_free(page->uri);
   if(page->head)
-    free(page->head);
+    rl_free(page->head);
   if(page->body)
-    free(page->body);
+    rl_free(page->body);
   if(page->filename)
-    free(page->filename);
-  free(page);
+    rl_free(page->filename);
+  rl_free(page);
 
   return;
 }

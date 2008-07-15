@@ -51,21 +51,22 @@ static void free_dir_list(char **list);
 char *read_dir_contents(const char *filename,const char *uri)
 {
   char **dlist=read_dir_list(filename);
-  char tbuf[384];
+  char *tbuf=rl_malloc(384); memset(tbuf,'\0',384);
   unsigned int len=strlen(LSHEAD)+strlen(LSBOTTOM)+strlen(uri)*2+1;
   char *outbuf=NULL;
   char *_uri=(char *)uri; 
-  _uri+=sizeof(char);
   int i;
 
+  if(!strcmp(_uri,"/"))
+    _uri+=sizeof(char);
+
+
   len+=(strlen(LSENTRY)+512)*total_files;
-  outbuf=rl_calloc(1,len);
-  if(!outbuf) {
-    fprintf(stderr,"Error allocating memory.\n read_dir_contents()\n");
-    goto func_exit;
-  }
+  outbuf=rl_malloc(len);
+  memset(outbuf,'\0',len);
+
   sprintf(outbuf,LSHEAD,uri,uri);
-  for(i=0;i<=total_files;i++) {
+  for(i=0;i<total_files;i++) {
     if(dlist[i]) {
       sprintf(tbuf,LSENTRY,_uri,dlist[i],dlist[i]);
       outbuf=strcat(outbuf,tbuf);
@@ -73,9 +74,10 @@ char *read_dir_contents(const char *filename,const char *uri)
   }
   outbuf=strcat(outbuf,LSBOTTOM);
 
-
- func_exit:
   free_dir_list(dlist);
+  rl_free(tbuf);
+
+  total_files=0;
 
   return outbuf;
 }
@@ -89,7 +91,7 @@ static char **read_dir_list(const char *path)
 {
   char **list=rl_malloc(sizeof(char)*256);
   DIR *dir;
-  struct dirent *entry=rl_malloc(sizeof(struct dirent));
+  struct dirent *entry;//=rl_malloc(sizeof(struct dirent));
 
   total_files=0;
   dir=opendir(path);
@@ -97,8 +99,9 @@ static char **read_dir_list(const char *path)
     if(!strcmp(entry->d_name,"."))
       continue;
     else {
-      if(total_files/256>=1 && total_files%256==0)
+      if(total_files/256>=1 && total_files%256==0) {
 	list=rl_realloc(list,sizeof(char)*(((total_files/256)+1)*256));
+      }
       list[total_files]=strdup(entry->d_name);
       total_files++;
     }

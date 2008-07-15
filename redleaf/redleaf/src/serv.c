@@ -361,6 +361,7 @@ static void write_connection(int i)
 static void parse_connection(int i) /*simply request the page*/
 {
   struct page_t *page;
+  printf("-----\n%s\n------\n",connections[i]->request);
   connections[i]->page=page_t_generate(connections[i]->request);
   if(connections[i]->page==NULL)
     connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
@@ -496,17 +497,9 @@ static int new_connection(void)
     return -1;
   } else {
     if(!connections[i]) {
-      connections[i]=calloc(1,sizeof(struct connection_t));
-      if(!connections[i]) {
-	fprintf(stderr,"Not enough memory.\n");
-	exit(3);
-      }
+      connections[i]=rl_calloc(1,sizeof(struct connection_t));
       connections[i]->socket=-1;
-      connections[i]->request=malloc(MAXBUF_LEN);
-      if(!connections[i]->request) {
-	fprintf(stderr,"Not enough memory.\n");
-	exit(3);
-      }
+      connections[i]->request=rl_malloc(MAXBUF_LEN);
     }
     connections[i]->last_state=current_time;
     connections[i]->rxstat=connections[i]->wxstat=ST_NONE;
@@ -515,6 +508,7 @@ static int new_connection(void)
     connections[i]->page=NULL;
     connections[i]->req_ptr=connections[i]->request;
     connections[i]->request_len=0;
+    memset(connections[i]->request,'\0',MAXBUF_LEN);
     connections[i]->socket=accept(sock,(struct sockaddr *) &rin,&rin_len);
     //unblock_socket(connections[i]->socket);
     if(connections[i]->socket<0) {
