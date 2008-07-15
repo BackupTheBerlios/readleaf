@@ -38,7 +38,7 @@
 #define LSHEAD  "<html><head><title>%s contents:</title></head><body>\
 <h1>%s directory contents:</h1><hr>\n"
 #define LSBOTTOM  "<hr>Redleaf v0.1beta<br></body></html>"
-#define LSENTRY  "<a href=\"%s/%s\">%s</a><br>\n"
+#define LSENTRY  "<a href=\"%s\">%s</a><br>\n"
 
 /*local used variables*/
 static int total_files=0;
@@ -54,12 +54,7 @@ char *read_dir_contents(const char *filename,const char *uri)
   char *tbuf=rl_malloc(384); memset(tbuf,'\0',384);
   unsigned int len=strlen(LSHEAD)+strlen(LSBOTTOM)+strlen(uri)*2+1;
   char *outbuf=NULL;
-  char *_uri=(char *)uri; 
   int i;
-
-  if(!strcmp(_uri,"/"))
-    _uri+=sizeof(char);
-
 
   len+=(strlen(LSENTRY)+512)*total_files;
   outbuf=rl_malloc(len);
@@ -68,7 +63,7 @@ char *read_dir_contents(const char *filename,const char *uri)
   sprintf(outbuf,LSHEAD,uri,uri);
   for(i=0;i<total_files;i++) {
     if(dlist[i]) {
-      sprintf(tbuf,LSENTRY,_uri,dlist[i],dlist[i]);
+      sprintf(tbuf,LSENTRY,dlist[i],dlist[i]);
       outbuf=strcat(outbuf,tbuf);
     }
   }
@@ -91,7 +86,7 @@ static char **read_dir_list(const char *path)
 {
   char **list=rl_malloc(sizeof(char)*256);
   DIR *dir;
-  struct dirent *entry;//=rl_malloc(sizeof(struct dirent));
+  struct dirent *entry;
 
   total_files=0;
   dir=opendir(path);
@@ -109,7 +104,6 @@ static char **read_dir_list(const char *path)
   qsort(list,total_files,sizeof(char *),qsort_cmp_by_name);
   list[total_files+1]=NULL;
   closedir(dir);
-  //rl_free(entry);
 
   return list;
 }
@@ -117,7 +111,7 @@ static char **read_dir_list(const char *path)
 static void free_dir_list(char **list)
 {
   int i=0;
-  while(list[i]){
+  while(i<total_files){
     rl_free(list[i]); i++;
   }
   rl_free(list);

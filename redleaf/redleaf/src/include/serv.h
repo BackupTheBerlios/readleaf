@@ -36,7 +36,7 @@
 #include <file.h>
 
 #define RD_TIMEOUT  30
-#define MAXBUF_LEN  4096
+#define MAXBUF_LEN  1024
 
 typedef enum {
   ST_READ,

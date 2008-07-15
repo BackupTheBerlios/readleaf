@@ -49,6 +49,13 @@
 <body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.1b</body></html>"
 #define INTERNAL_SERVER_ERROR_PAGE  "<html><head><title>Internal server error \
 </title></head><body><h1>Internal Server Error</h1><hr>RedLeaf v0.1b</body>"
+#define MOVED_PERMANENTLY_HEAD  "HTTP/1.1 301 Moved Permanently\n\
+Date: %s\n\
+Server: Redleaf\n\
+Location: http://%s%s\n\
+Content-Type: text/html; charset=utf-8\n\n"
+#define MOVED_PERMANENTLY_PAGE  "<html><head><title>Moved permanently</title></head><body>\
+<h1>Moved Permanently</h1>http://%s%s<hr>RedLeaf v0.1b</body></html>"
 
 /*bad request page, doesn't cached it's a static*/
 struct page_t *bad_request_page = NULL;
@@ -61,15 +68,19 @@ static void init_http_request(struct http_request *p);
 static char *mime_type(char *path);
 static struct page_t *generate_bad_request_page(void);
 static void gen_error_page(struct page_t *page,int err);
+static void gen_notify_page(struct page_t *page, int err,
+			    char *ar0,struct http_request *r);
 static void update_page(struct page_t *page,struct stat ystat);
 static void decode_uri(char *uri);
+static inline char *skip_blanks(char *p);
+static inline char *skip_nblanks(char *p);
 
-/*TODO: exchange malloc/free/strdup/strndup to safe internal functions*/
 /*TODO: parse other variables from request*/
-struct http_request *parse_http_request(char *msg)
+struct http_request *parse_http_request(const char *msg)
 {
   struct http_request *p=NULL;
-  char *tmsg=msg,*ttmsg;
+  char *tmsg=(char *)msg,*ttmsg=NULL;
+  int len=0;
 
   p=rl_malloc(sizeof(struct http_request));
   init_http_request(p);
@@ -87,18 +98,33 @@ struct http_request *parse_http_request(char *msg)
     p->op_code=BAD_REQUEST;
     return p;
   }
-  if((tmsg=strchr(msg,' ')) && (ttmsg=strchr(tmsg+sizeof(char),' '))){
-    *ttmsg='\0';
-    p->uri=strdup(tmsg+sizeof(char));
-    *ttmsg=' ';
-  } else goto bad_request;
-  if(strncmp(ttmsg+sizeof(char),"HTTP/1.1",8) && strncmp(ttmsg+sizeof(char),"HTTP/1.0",8)) 
+
+  tmsg=skip_nblanks((char *)msg); /* get URI */
+  tmsg=skip_blanks(tmsg);
+  ttmsg=skip_nblanks(tmsg);
+  len=(int)(ttmsg-tmsg); 
+  p->uri=rl_malloc(len+1);
+  memset(p->uri,'\0',len+1);
+  p->uri=strncat(p->uri,tmsg,len);
+  tmsg=skip_blanks(ttmsg); /*check protocol and version*/
+  if(strncmp(tmsg,"HTTP/1.1",8) && strncmp(tmsg,"HTTP/1.0",8)) 
     goto bad_request;
+  tmsg=skip_nblanks(tmsg); /*get host value*/
+  tmsg=skip_blanks(tmsg);
+  if(strncmp(tmsg,"Host:",5))
+    goto bad_request;
+  tmsg=skip_nblanks(tmsg);
+  tmsg=skip_blanks(tmsg);
+  ttmsg=skip_nblanks(tmsg);
+  len=(int)(ttmsg-tmsg); 
+  p->host=rl_malloc(len+1);
+  memset(p->host,'\0',len+1);
+  p->host=strncat(p->host,tmsg,len);
 
   return p;
 }
 
-struct page_t *page_t_generate(char *request)
+struct page_t *page_t_generate(const char *request)
 {
   char *req;
   struct page_t *page=NULL;
@@ -148,11 +174,14 @@ struct page_t *page_t_generate(char *request)
       normalize_page(page);
     }
   } else { /*so, need to be generated*/
-    char *uri=strdup(req);
+    size_t length=strlen(req)+sizeof(char)*8;
+    char *uri=rl_malloc(length);
     char *date=get_rfc1123date(time(NULL));
     char *head=rl_malloc(sizeof(char)*512);
-    size_t length;
     int fd;
+
+    memset(uri,'\0',length);
+    uri=strncpy(uri,req,length-8);
 
     /*look out for an index*/
     if(!root_dir) { /*get real requested filename*/
@@ -174,11 +203,19 @@ struct page_t *page_t_generate(char *request)
       goto error_lock;
     }
     if(S_ISDIR(ystat.st_mode)) { /*is dir,check for index*/
+      if(tfn[strlen(tfn)-1]!='/') { /*oops,was moved*/
+	page=create_page_t(uri,NULL,NULL,tfn,OK);
+	uri=strcat(uri,"/");
+	gen_notify_page(page,MOVED_PERMANENTLY,uri,ht_req);
+	normalize_page(page);
+	rl_free(date);
+	goto return_and_exit;
+      }
       yys+=strlen("index.html")+2*sizeof(char);
       chkfile=rl_malloc(yys);
 
-      snprintf(chkfile,yys,"%s/%s",tfn,"index.html");
-      if(stat(chkfile,&ystat)==-1) {
+      snprintf(chkfile,yys,"%s%s",tfn,"index.html");
+      if(stat(chkfile,&ystat)==-1) { /*no index*/
 	filename=tfn;
 	rl_free(chkfile);
       } else {
@@ -370,11 +407,10 @@ static void gen_error_page(struct page_t *page,int err)
   if(page->body)    rl_free(page->body);
   if(page->head)    rl_free(page->head);
 
-  page->head=malloc(sizeof(char)*256);
+  page->head=rl_malloc(sizeof(char)*256);
 
   switch(err) {
   case NOT_FOUND:
-    page->head=malloc(sizeof(char)*256);
     snprintf(page->head,255,"HTTP/1.1 404 Not Found\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(NOTFOUND_PAGE)+strlen(page->uri)+sizeof(char);
     page->body=malloc(len);
@@ -383,7 +419,6 @@ static void gen_error_page(struct page_t *page,int err)
     page->bodysize=strlen(page->body);
     break;
   case FORBIDDEN:
-    page->head=malloc(sizeof(char)*256);
     snprintf(page->head,255,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(FORBIDDEN_PAGE)+strlen(page->uri)+sizeof(char);
     page->body=malloc(len);
@@ -391,9 +426,11 @@ static void gen_error_page(struct page_t *page,int err)
     page->head_len=strlen(page->head);
     page->bodysize=strlen(page->body);
     break;
+  case MOVED_PERMANENTLY:
+
+    break;
   case INTERNAL_SERVER_ERROR:
   default:
-    page->head=malloc(sizeof(char)*256);
     snprintf(page->head,255,"HTTP/1.1 500 Internal Server Error\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(INTERNAL_SERVER_ERROR_PAGE)+sizeof(char);
     page->body=malloc(len);
@@ -403,7 +440,38 @@ static void gen_error_page(struct page_t *page,int err)
     break;
   }
 
-  free(date);
+  rl_free(date);
+
+  return;
+}
+
+static void gen_notify_page(struct page_t *page, int err,char *ar0,struct http_request *r)
+{
+  char *date=get_rfc1123date(time(NULL));
+  int len=0;
+
+  if(page->head)
+    denormalize_page(page);
+  page->op=err;
+  if(page->body)    rl_free(page->body);
+  if(page->head)    rl_free(page->head);
+
+  switch(err) {
+  case MOVED_PERMANENTLY:
+    len=strlen(ar0)+strlen(r->host)+strlen(date);
+    len+=strlen(MOVED_PERMANENTLY_HEAD)+(2*sizeof(char));
+    page->head=rl_malloc(len);
+    snprintf(page->head,len-1,MOVED_PERMANENTLY_HEAD,date,r->host,ar0);
+    len-=strlen(MOVED_PERMANENTLY_HEAD)+strlen(date);
+    len+=strlen(MOVED_PERMANENTLY_PAGE);
+    page->body=rl_malloc(len);
+    snprintf(page->body,len-1,MOVED_PERMANENTLY_PAGE,r->host,ar0);
+    page->head_len=strlen(page->head);
+    page->bodysize=strlen(page->body);
+    break;
+  }
+
+  rl_free(date);
 
   return;
 }
@@ -471,3 +539,24 @@ static void decode_uri(char *uri)
 
   return;
 }
+
+static inline char *skip_blanks(char *p)
+{
+  if(!p)
+    return NULL;
+  while(isspace(*p))
+    p++;
+
+  return p;
+}
+
+static inline char *skip_nblanks(char *p)
+{
+  if(!p)
+    return NULL;
+  while(*p && !isspace(*p))
+    p++;
+
+  return p;
+}
+

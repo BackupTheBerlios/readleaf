@@ -361,7 +361,7 @@ static void write_connection(int i)
 static void parse_connection(int i) /*simply request the page*/
 {
   struct page_t *page;
-  printf("-----\n%s\n------\n",connections[i]->request);
+  /*  printf("-----\n%s\n------\n",connections[i]->request);*/
   connections[i]->page=page_t_generate(connections[i]->request);
   if(connections[i]->page==NULL)
     connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
@@ -510,7 +510,7 @@ static int new_connection(void)
     connections[i]->request_len=0;
     memset(connections[i]->request,'\0',MAXBUF_LEN);
     connections[i]->socket=accept(sock,(struct sockaddr *) &rin,&rin_len);
-    //unblock_socket(connections[i]->socket);
+
     if(connections[i]->socket<0) {
       fprintf(stderr,"Accept failed.\n");
       perror("accept() :");

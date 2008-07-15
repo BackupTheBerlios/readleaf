@@ -138,8 +138,8 @@ struct http_reply {
 };
 
 /*functions*/
-struct http_request *parse_http_request(char *msg);
-struct page_t *page_t_generate(char *request);
+struct http_request *parse_http_request(const char *msg);
+struct page_t *page_t_generate(const char *request);
 void free_http_request(struct http_request *r);
 
 #endif /*__HTTP_H__*/

@@ -29,6 +29,7 @@
 #include <fcntl.h>
 
 #include <file.h>
+#include <misc.h>
 
 /*TODO: makes checks*/
 
@@ -37,22 +38,18 @@ struct file_session_t *create_file_session(const char *filename,size_t buf_len)
   struct file_session_t *p=NULL;
   struct stat st;
 
-  p=malloc(sizeof(struct file_session_t));
-  if(!p) {
-    fprintf(stderr,"Error allocating memory.\n");
-    return NULL;
-  }
+  p=rl_malloc(sizeof(struct file_session_t));
   p->filename=strdup(filename);
   if(!p->filename) {
     fprintf(stderr,"Error allocating memory.\n");
     free(p);
     return NULL;
   }
-  p->buf=malloc(buf_len);
+  p->buf=rl_malloc(buf_len);
   if(!p->buf) {
     fprintf(stderr,"Error allocating memory.\n");
-    free(p->filename);
-    free(p);
+    rl_free(p->filename);
+    rl_free(p);
     return NULL;
   }
   p->cur_off=0;
@@ -61,9 +58,9 @@ struct file_session_t *create_file_session(const char *filename,size_t buf_len)
   if(p->fd==-1) {
     fprintf(stderr,"Error opening file `%s'\n",filename);
   _open_fail:
-    free(p->filename);
-    free(p->buf);
-    free(p);
+    rl_free(p->filename);
+    rl_free(p->buf);
+    rl_free(p);
     return NULL;
   }
   if(stat(p->filename,&st)) {
@@ -79,16 +76,16 @@ struct file_session_t *create_file_session(const char *filename,size_t buf_len)
 void destroy_file_session(struct file_session_t *p)
 {
   if(p->buf)
-    free(p->buf);
+    rl_free(p->buf);
   if(p->filename)
-    free(p->filename);
+    rl_free(p->filename);
 
   if(close(p->fd)) {
     fprintf(stderr,"Warning: error closing file descriptor.\n");
     perror("close:");
   }
 
-  free(p);
+  rl_free(p);
 
   return;
 }
