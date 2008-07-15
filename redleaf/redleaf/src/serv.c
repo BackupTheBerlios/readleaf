@@ -112,12 +112,10 @@ int main_process(int argc,char **argv)
     exit(3);
   }
 
-  //  unblock_socket(sock);
-
   cnf_value=get_general_value("max_clients");
 
   port_n=(cnf_value==NULL) ? MAX_CONNECTIONS : atoi(cnf_value);
-  max_connections=port_n;
+  max_connections=(port_n<2) ? 2 : port_n;
 
   chlds=malloc(max_connections*sizeof(pid_t));
   if(!chlds) {
