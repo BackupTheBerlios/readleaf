@@ -75,12 +75,14 @@ static void decode_uri(char *uri);
 static inline char *skip_blanks(char *p);
 static inline char *skip_nblanks(char *p);
 
-/*TODO: parse other variables from request*/
+#define vstrfil(p,len,tb) p=rl_malloc(len+1); memset(p,'\0',len+1); p=strncat(p,tb,len);
+
 struct http_request *parse_http_request(const char *msg)
 {
   struct http_request *p=NULL;
   char *tmsg=(char *)msg,*ttmsg=NULL;
-  int len=0;
+  char *prst,*pprst;
+  int len=0,chs=0;
 
   p=rl_malloc(sizeof(struct http_request));
   init_http_request(p);
@@ -111,15 +113,61 @@ struct http_request *parse_http_request(const char *msg)
     goto bad_request;
   tmsg=skip_nblanks(tmsg); /*get host value*/
   tmsg=skip_blanks(tmsg);
-  if(strncmp(tmsg,"Host:",5))
-    goto bad_request;
-  tmsg=skip_nblanks(tmsg);
-  tmsg=skip_blanks(tmsg);
-  ttmsg=skip_nblanks(tmsg);
-  len=(int)(ttmsg-tmsg); 
-  p->host=rl_malloc(len+1);
-  memset(p->host,'\0',len+1);
-  p->host=strncat(p->host,tmsg,len);
+
+  while(tmsg!=NULL) {
+    if(!strncmp(tmsg,"Host:",5)) chs=0;
+    else if(!strncmp(tmsg,"User-Agent:",11)) chs=1;
+    else if(!strncmp(tmsg,"Accept:",7)) chs=2;
+    else if(!strncmp(tmsg,"Accept-Language:",16)) chs=3;
+    else if(!strncmp(tmsg,"Accept-Encoding:",16)) chs=4;
+    else if(!strncmp(tmsg,"Accept-Charset:",15)) chs=5;
+    else if(!strncmp(tmsg,"Keep-Alive:",11)) chs=6;
+    else if(!strncmp(tmsg,"Connection:",11)) chs=7;
+    else if(!strncmp(tmsg,"Referer:",8)) chs=8;
+    else if(!strncmp(tmsg,"Range:",6)) chs=9;
+    else if(!strncmp(tmsg,"X-",2)) chs=100;
+    else chs=100;
+    if(chs==100) break;
+    tmsg=skip_nblanks(tmsg);tmsg=skip_blanks(tmsg);
+    for(ttmsg=strchr(tmsg,'\r');ttmsg[1]!='\n';ttmsg=strchr(tmsg,'\r')) {
+      if(!ttmsg)
+	goto bad_request;
+    }
+    len=(int)(ttmsg-tmsg); 
+    switch(chs) {
+    case 0:
+      vstrfil(p->host,len,tmsg);
+      break;
+    case 1:
+      vstrfil(p->user_agent,len,tmsg);
+      break;
+    case 2:
+      vstrfil(p->accept,len,tmsg);
+      break;
+    case 3:
+      vstrfil(p->accept_language,len,tmsg);
+      break;
+    case 4:
+      vstrfil(p->accept_encoding,len,tmsg);
+      break;
+    case 5:
+      vstrfil(p->accept_charset,len,tmsg);
+      break;
+    case 8:
+      vstrfil(p->referer,len,tmsg);
+      break;
+    case 9:
+      prst=strchr(tmsg,'=');
+      prst++;
+      pprst=strchr(prst,'-');
+      len=(int)(pprst-prst);
+      vstrfil(pprst,len,prst);
+      p->range=atol(pprst);
+      rl_free(pprst);
+      break;
+    }
+    tmsg=skip_blanks(ttmsg);
+  }
 
   return p;
 }
@@ -276,14 +324,16 @@ void free_http_request(struct http_request *p)
 {
   if(!p)
     return;
-  if(p->uri)    free(p->uri);
-  if(p->host)    free(p->host);
-  if(p->user_agent) free(p->user_agent);
-  if(p->accept) free(p->accept);
-  if(p->accept_language) free(p->accept_language);
-  if(p->accept_encoding) free(p->accept_encoding);
-  if(p->accept_charset) free(p->accept_charset);
-  free(p);
+
+  if(p->uri)    rl_free(p->uri);
+  if(p->host)    rl_free(p->host);
+  if(p->user_agent) rl_free(p->user_agent);
+  if(p->accept) rl_free(p->accept);
+  if(p->accept_language) rl_free(p->accept_language);
+  if(p->accept_encoding) rl_free(p->accept_encoding);
+  if(p->accept_charset) rl_free(p->accept_charset);
+  if(p->referer) rl_free(p->referer);
+  rl_free(p);
 
   return;
 }
@@ -513,9 +563,11 @@ static void init_http_request(struct http_request *p)
 {
   if(!p)
     return;
+
   p->uri=p->host=p->user_agent=p->accept=p->accept_language=p->accept_encoding=NULL;
-  p->accept_charset=NULL;
+  p->accept_charset=p->referer=NULL;
   p->op_code = OK;
+  p->range=0;
 
   return;
 }
