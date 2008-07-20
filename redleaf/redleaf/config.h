@@ -8,8 +8,8 @@
 
 /*version stuff*/
 #define VER_MAJOR   0
-#define VER_MINOR   1
-#define VER_TREE    "autumn changes"
-#define VER_SUFFIX  "beta"
+#define VER_MINOR   2
+#define VER_TREE    "Redleafd"
+#define VER_SUFFIX  "alpha"
 
 #endif

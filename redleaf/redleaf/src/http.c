@@ -44,18 +44,18 @@
 
 /*page macros*/
 #define NOTFOUND_PAGE  "<html><head><title>NOT FOUND on this server.</title></head> \
-<body><h1>Requested document not found.</h1><hr>%s not found.<hr>RedLeaf v0.1b</body></html>"
+<body><h1>Requested document not found.</h1><hr>%s not found.<hr>RedLeaf v0.2a</body></html>"
 #define FORBIDDEN_PAGE  "<html><head><title>FORBIDDEN.</title></head> \
-<body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.1b</body></html>"
+<body><h1>Forbidden.</h1><hr>%s access is stricted.<hr>RedLeaf v0.2a</body></html>"
 #define INTERNAL_SERVER_ERROR_PAGE  "<html><head><title>Internal server error \
-</title></head><body><h1>Internal Server Error</h1><hr>RedLeaf v0.1b</body>"
+</title></head><body><h1>Internal Server Error</h1><hr>RedLeaf v0.2a</body>"
 #define MOVED_PERMANENTLY_HEAD  "HTTP/1.1 301 Moved Permanently\n\
 Date: %s\n\
 Server: Redleaf\n\
 Location: http://%s%s\n\
 Content-Type: text/html; charset=utf-8\n\n"
 #define MOVED_PERMANENTLY_PAGE  "<html><head><title>Moved permanently</title></head><body>\
-<h1>Moved Permanently</h1>http://%s%s<hr>RedLeaf v0.1b</body></html>"
+<h1>Moved Permanently</h1>http://%s%s<hr>RedLeaf v0.2a</body></html>"
 
 /*bad request page, doesn't cached it's a static*/
 struct page_t *bad_request_page = NULL;
@@ -135,27 +135,13 @@ struct http_request *parse_http_request(const char *msg)
     }
     len=(int)(ttmsg-tmsg); 
     switch(chs) {
-    case 0:
-      vstrfil(p->host,len,tmsg);
-      break;
-    case 1:
-      vstrfil(p->user_agent,len,tmsg);
-      break;
-    case 2:
-      vstrfil(p->accept,len,tmsg);
-      break;
-    case 3:
-      vstrfil(p->accept_language,len,tmsg);
-      break;
-    case 4:
-      vstrfil(p->accept_encoding,len,tmsg);
-      break;
-    case 5:
-      vstrfil(p->accept_charset,len,tmsg);
-      break;
-    case 8:
-      vstrfil(p->referer,len,tmsg);
-      break;
+    case 0:      vstrfil(p->host,len,tmsg);      break;
+    case 1:      vstrfil(p->user_agent,len,tmsg);      break;
+    case 2:      vstrfil(p->accept,len,tmsg);      break;
+    case 3:      vstrfil(p->accept_language,len,tmsg);      break;
+    case 4:      vstrfil(p->accept_encoding,len,tmsg);      break;
+    case 5:      vstrfil(p->accept_charset,len,tmsg);      break;
+    case 8:      vstrfil(p->referer,len,tmsg);      break;
     case 9:
       prst=strchr(tmsg,'=');
       prst++;

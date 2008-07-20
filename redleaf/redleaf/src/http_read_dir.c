@@ -37,7 +37,7 @@
 
 #define LSHEAD  "<html><head><title>%s contents:</title></head><body>\
 <h1>%s directory contents:</h1><hr>\n"
-#define LSBOTTOM  "<hr>Redleaf v0.1beta<br></body></html>"
+#define LSBOTTOM  "<hr>Redleaf v0.2a<br></body></html>"
 #define LSENTRY  "<a href=\"%s\">%s</a><br>\n"
 
 /*local used variables*/
