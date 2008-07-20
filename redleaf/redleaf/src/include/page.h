@@ -34,6 +34,7 @@ struct page_t {
 
   size_t head_len;
   size_t bodysize; /*length of the body*/
+  size_t range; /*range offset*/
 
   time_t last_modify; /*last change of the page*/
   time_t last_stat; /*last modify for file*/

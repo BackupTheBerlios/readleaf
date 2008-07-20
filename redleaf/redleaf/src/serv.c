@@ -318,7 +318,7 @@ static void write_connection(int i)
       fprintf(stderr,"Error on writing to the socket.\n");
       connections[i]->wxstat=ST_ERROR;
       FD_CLR(connections[i]->socket,&fdrdset);
-      return;      
+      return;
     }
     connections[i]->data_len-=res;
     connections[i]->data_ptr+=res;
@@ -326,6 +326,10 @@ static void write_connection(int i)
   if(connections[i]->hb_switch==SS_FILE) { /*sending*/
     if(connections[i]->data_len==0) { /*set parameters*/
       connections[i]->data_len=connections[i]->file->file_len;	  
+      if(page->range) {
+	connections[i]->data_len-=page->range;
+	updoffset_file_session(connections[i]->file,page->range);
+      }
     }
     old_off=connections[i]->file->cur_off;
     buf=read_file_session(connections[i]->file,&flen);
@@ -336,6 +340,7 @@ static void write_connection(int i)
     } 
     if(res<0) {
       fprintf(stderr,"Error on writing to the socket.\n");
+      perror("write:");
       connections[i]->wxstat=ST_ERROR;
       FD_CLR(connections[i]->socket,&fdrdset);
       return;      
@@ -359,7 +364,7 @@ static void write_connection(int i)
 static void parse_connection(int i) /*simply request the page*/
 {
   struct page_t *page;
-  /*  printf("-----\n%s\n------\n",connections[i]->request);*/
+  printf("-----\n%s\n------\n",connections[i]->request);
   connections[i]->page=page_t_generate(connections[i]->request);
   if(connections[i]->page==NULL)
     connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;

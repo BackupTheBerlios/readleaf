@@ -225,6 +225,7 @@ struct page_t *page_t_generate(const char *request)
     size_t length=strlen(req)+sizeof(char)*8;
     char *uri=rl_malloc(length);
     char *date=get_rfc1123date(time(NULL));
+    char *mdate=NULL;
     char *head=rl_malloc(sizeof(char)*512);
     int fd;
 
@@ -285,18 +286,35 @@ struct page_t *page_t_generate(const char *request)
       if(S_ISDIR(ystat.st_mode)) { /*TODO: check if the dir is visible*/
 	page->op=3;
 	page->last_stat=ystat.st_mtime;
-	snprintf(head,256,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
+	snprintf(head,256,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type:"\
+		 " closed\nContent-type: text/html\n\n",
+		 date);
 	page->head=head;
 	page->head_len=strlen(head);
 	page->body=read_dir_contents(filename,uri);
 	page->bodysize=strlen(page->body);
       } else if(S_ISREG(ystat.st_mode)) { /*yep, file*/
-	length=ystat.st_size;
-	sprintf(head,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-Length: %ld\nContent-type: %s\n\n",
-		date,(long int)length,mime_type(filename));
+	if(ht_req->range>0) {
+	  /*TODO: make a check for length!*/
+	  length=ystat.st_size-ht_req->range;
+	  mdate=get_rfc1123date(ystat.st_mtime);
+	  snprintf(head,511,"HTTP/1.1 206 Partial Content\nDate: %s\nServer: Redleaf\nLast-Modified: %s\n"\
+		   "Connection-Range: bytes %ld-%ld/%ld\nContent-Length: %ld\n"\
+		   "Content-Type: %s\n\n",
+		   date,mdate,ht_req->range,ystat.st_size-1,ystat.st_size,length,
+		   mime_type(filename));
+	  page->range=ht_req->range; /*mark as partial*/
+	  rl_free(mdate);
+	} else {
+	  length=ystat.st_size;
+	  snprintf(head,511,
+		   "HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-Type:"\
+		   " closed\nContent-Length: %ld\nContent-Type: %s\n\n",
+		   date,(long int)length,mime_type(filename));
+	}
 	page->head=head;
 	page->head_len=strlen(head);
-	if(length<=4096) { /*read this*/
+	if(length+ht_req->range<=4096) { /*read this*/
 	  page->op=1;
 	  page->bodysize=length;
 	  fd=open(filename,O_RDONLY); /*TODO: make check*/

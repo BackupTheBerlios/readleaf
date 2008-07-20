@@ -112,6 +112,7 @@ struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int 
   page->last_stat=time(NULL);
   page->last_access=time(NULL);
   page->bodysize=0;
+  page->range=0;
   page->ref=0;
 
   return page;

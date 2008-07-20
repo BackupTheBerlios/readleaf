@@ -114,6 +114,8 @@ struct http_request {
   char *accept_language;
   char *accept_encoding;
   char *accept_charset;
+  char *referer;
+  size_t range;
   int keep_alive;
   connection_t connection_type;
   int op_code; /*parse error if exist*/
