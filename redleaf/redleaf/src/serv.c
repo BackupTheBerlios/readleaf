@@ -76,7 +76,7 @@ static int _serv_proc(int sock,int max_conn,int id);
 static int __make_chld(int sock,int max_conn,int id);
 static void __sigint_handler(int sig_num);
 static void sigint_handler(int signal_number);
-static void sigchld_handler(int signal_number);
+/*static void sigchld_handler(int signal_number);*/
 static void sigpipe_handler(int signal_number);
 static void init_connections(int max);
 static int new_connection(void);
@@ -87,9 +87,9 @@ static void close_connection(int i);
 static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port);
 static int cr_sock(uint16_t p,const char *host);
 static int shutdown_socket(void);
-static int unblock_socket(int sk);
+/*static int unblock_socket(int sk);*/
 /*debug output functions*/
-#ifdef _DEBUG_
+#ifdef _DEBUG_ 
 static void dbg_print_connection_info(int i);
 #endif
 
@@ -117,7 +117,7 @@ int main_process(int argc,char **argv)
   port_n=(cnf_value==NULL) ? MAX_CONNECTIONS : atoi(cnf_value);
   max_connections=(port_n<2) ? 2 : port_n;
 
-  chlds=malloc(max_connections*sizeof(pid_t));
+  chlds=rl_malloc(max_connections*sizeof(pid_t));
   if(!chlds) {
     fprintf(stderr,"Error allocating memory.\n");
     shutdown_socket();
@@ -384,7 +384,7 @@ static void parse_connection(int i) /*simply request the page*/
 
 static void dbg_print_connection_info(int i)
 {
-  char *buf=malloc(64);
+  char *buf=rl_malloc(64);
   char *date=NULL;
   fprintf(stderr,"connection[%d] stat:\n",i);
   switch(connections[i]->rxstat) {
@@ -439,8 +439,8 @@ static void dbg_print_connection_info(int i)
   else
     fprintf(stderr,"\tPage is NULL\n");
 
-  free(date);
-  free(buf);
+  rl_free(date);
+  rl_free(buf);
 
   return;
 }
@@ -566,10 +566,12 @@ static void __sigint_handler(int sig_num)
   return;
 }
 
+#if 0
 static void sigchld_handler(int signal_number)
 {
   while (waitpid(-1,&signal_number,WNOHANG) > 0) ;
 }
+#endif
 
 static void sigpipe_handler(int signal_number)
 {
@@ -628,6 +630,7 @@ static int cr_sock(uint16_t p,const char *host)
   return sk;
 }
 
+#if 0
 static int unblock_socket(int sk)
 {
   int flags=fcntl(sk,F_GETFL,NULL);
@@ -639,6 +642,7 @@ static int unblock_socket(int sk)
 
   return 0;
 }
+#endif
 
 static int shutdown_socket(void)
 {

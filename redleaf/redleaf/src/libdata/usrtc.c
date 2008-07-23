@@ -28,6 +28,7 @@
 #include <stdio.h>
 #include <string.h>
 
+#include <misc.h>
 #include <libdata/usrtc.h>
 #include <libdata/macro.h>
 
@@ -50,12 +51,12 @@ static usrtc_functions_t *impl_table[] = {
 
 static usrtc_node_t *default_node_alloc(void *context)
 {
-  return malloc(sizeof *default_node_alloc(context));
+  return rl_malloc(sizeof *default_node_alloc(context));
 }
 
 static void default_node_free(void *context,usrtc_node_t *node)
 {
-  free(node);
+  rl_free(node);
 }
 
 void usrtc_init(usrtc_t *us,int impl,usrtc_count_t maxcount,usrtc_compare_t compare)
@@ -78,7 +79,7 @@ void usrtc_init(usrtc_t *us,int impl,usrtc_count_t maxcount,usrtc_compare_t comp
 
 usrtc_t *usrtc_create(int impl,usrtc_count_t maxcount,usrtc_compare_t compare)
 {
-  usrtc_t *newrtc=(usrtc_t*)malloc(sizeof *newrtc);
+  usrtc_t *newrtc=(usrtc_t*)rl_malloc(sizeof *newrtc);
   
   if(newrtc)
     usrtc_init(newrtc,impl,maxcount,compare);
@@ -92,7 +93,7 @@ void usrtc_destroy(usrtc_t *us)
   if(!us)
     return;
 
-  free(us);
+  rl_free(us);
 }
 
 void usrtc_convert_to(usrtc_t *us,int impl)
@@ -174,7 +175,7 @@ void usrtc_node_init(usrtc_node_t *node,void *data)
 
 usrtc_node_t *usrtc_node_create(void *data)
 {
-  usrtc_node_t *newnode=(usrtc_node_t*)malloc(sizeof *newnode);
+  usrtc_node_t *newnode=(usrtc_node_t*)rl_malloc(sizeof *newnode);
   
   if(newnode!=NULL)
     newnode->data=data;
@@ -184,7 +185,7 @@ usrtc_node_t *usrtc_node_create(void *data)
 
 void usrtc_node_destroy(usrtc_node_t *node)
 {
-  free(node);
+  rl_free(node);
 }
 
 void *usrtc_node_getdata(usrtc_node_t *node)

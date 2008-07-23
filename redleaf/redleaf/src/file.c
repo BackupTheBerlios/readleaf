@@ -42,7 +42,7 @@ struct file_session_t *create_file_session(const char *filename,size_t buf_len)
   p->filename=strdup(filename);
   if(!p->filename) {
     fprintf(stderr,"Error allocating memory.\n");
-    free(p);
+    rl_free(p);
     return NULL;
   }
   p->buf=rl_malloc(buf_len);

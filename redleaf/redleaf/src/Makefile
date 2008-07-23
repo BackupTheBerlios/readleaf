@@ -17,7 +17,7 @@ defaults: redleafd $(HEADERS)
 	@gcc $(CFLAGS) -I${INCLUDES} -c -o $*.o $<
 
 libdata/libdata.a:
-	@echo "Building libdata.a ..."
+	@echo "BLD: Building libdata.a ..."
 	@cd libdata;make
 
 redleafd: $(OBJS) 

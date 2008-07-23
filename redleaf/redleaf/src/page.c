@@ -143,13 +143,13 @@ int normalize_page(struct page_t *page)
   if(page->op==2) /*normal, in the case of big file*/
     return 0;
 
-  data=malloc(total_len);
+  data=rl_malloc(total_len);
   data_r=data;
   memcpy(data,page->head,page->head_len);
   data_r+=page->head_len;
   memcpy(data_r,page->body,page->bodysize);
-  free(page->head);
-  free(page->body);
+  rl_free(page->head);
+  rl_free(page->body);
   page->head=data;
   page->body=data_r;
 
@@ -162,12 +162,12 @@ int denormalize_page(struct page_t *page)
 
   if(page->op==2) /*normal, in the case of big file*/
     return 0;
-  head=malloc(page->head_len);
+  head=rl_malloc(page->head_len);
   head=memcpy(head,page->head,page->head_len);
-  body=malloc(page->bodysize);
+  body=rl_malloc(page->bodysize);
   body=memcpy(body,page->body,page->bodysize);
 
-  free(page->head);
+  rl_free(page->head);
 
   page->head=head;
   page->body=body;

@@ -41,7 +41,7 @@ struct variable *get_mimetype_variables(const char *typ);
 
 /*----parser-----*/
 /*read syntax and context tree*/
-//int read_syn_tree(char *buffer,int size);
 void load_configuration(char *buffer,int size);
+void free_conf_tree(void);
 
 #endif

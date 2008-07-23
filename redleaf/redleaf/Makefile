@@ -17,6 +17,7 @@ install: src/redleafd
 	@echo "INS: creating directories ..."
 	@mkdir -p ${DESTDIR}/bin
 	@mkdir -p ${SHAREDIR}/www
+	@mkdir -p ${SHAREDIR}/www/img
 	@mkdir -p ${ETCDIR}/redleaf
 	@echo "INS: stripping binary ..."
 	@strip src/redleafd
@@ -24,6 +25,7 @@ install: src/redleafd
 	@cp src/redleafd ${DESTDIR}/bin/redleafd
 	@cp example.conf ${ETCDIR}/redleaf/example.conf
 	@cp www-default/index.html ${SHAREDIR}/www/index.html
+	@cp www-default/img/redleaflogo.png ${SHAREDIR}/www/img/redleaflogo.png
 	@echo "INS: done"
 
 clean: 

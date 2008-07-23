@@ -67,7 +67,7 @@ int main(int argc, char **argv)
     }
   } else {
     cfsize=strlen(CONF_NAME_)+strlen(PREFIX_PATH)+strlen(ETC_PATH)+1;
-    cnfnm=malloc(cfsize*sizeof(char));
+    cnfnm=rl_malloc(cfsize*sizeof(char));
     if(!cnfnm) {
       fprintf(stderr,"Not enough memory.\nExiting ...\n");
       return -1;
@@ -82,7 +82,7 @@ int main(int argc, char **argv)
   main_process(argc,argv);
 
   munmap_file((void *)buf,size);
-  free(cnfnm);
+  rl_free(cnfnm);
 
   return 0;
 }

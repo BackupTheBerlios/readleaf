@@ -67,15 +67,8 @@ typedef enum {
   _VIRTUALHOST,
 } module_t;
 
-/*static char *sections[]={"General","Module","Directory","VirtualHost"};
-static char *general_pairs[]={"hostname","port","root_directory","log_level","user","group"};
-static char *module_pairs[]={"path"};
-static char *directory_pairs[]={"webpath","access","index"};
-static char *virtualhost_pairs[]={"directory"};
-
-static int general_tree_fit=5;*/
 static unsigned int total_sections=0; 
-static struct syn_tree local_tree[MAX_SECTIONS];
+static struct syn_tree *local_tree;
 
 void init_defaults(void)
 {
@@ -97,7 +90,7 @@ char *get_general_value(const char *name)
   struct syn_tree general;
   int i=0;
 
-  while(i<=MAX_SECTIONS)
+  while(i<=total_sections)
     if(!strncmp((const char*)local_tree[i].name,"General",__STRLEN("General"))){
       general=local_tree[i];
       break;
@@ -145,13 +138,21 @@ void load_configuration(char *buffer,int size)
   return;
 }
 
+void free_conf_tree(void)
+{
+  rl_free(local_tree);
+
+  return;
+}
+
 /*implementation*/
 static int read_syn_tree(char *buffer,int size)
 {
   char *buf=rl_malloc(sizeof(char)*size),*tbuf=buffer,*fbuf=buf;
   int b_size=size;
-  int ss=0,es=0,sl=0;
+  int ss=0,es=0,sl=0,i;
   struct __conf_section *cnf_section=NULL,*tsect;
+  char *expr, *uui;
 
   if(!buffer || !size) {
 #ifdef _DEBUG_
@@ -175,7 +176,7 @@ static int read_syn_tree(char *buffer,int size)
       }
     else if(*tbuf=='\n') { /*override*/
       tbuf++;b_size--;
-    } else if(isblank((int)*tbuf)) { /*remove blanks*/
+    } else if(isspace((int)*tbuf)) { /*remove blanks*/
       tbuf++;b_size--;
     } else {
       *fbuf=*tbuf; tbuf++;b_size--;
@@ -187,20 +188,20 @@ static int read_syn_tree(char *buffer,int size)
 
   if((ss-es)!=0) {
     fprintf(stderr,"Syntax error under '{|}'.\nAborting.\n");
-    free(buf);
+    rl_free(buf);
     return -1;
   }
   if(!ss || !es) {
     fprintf(stderr,"No sections are present.\nAborting.\n");
-    free(buf);
+    rl_free(buf);
     return -1;
   }
 
   fbuf=buf;es=0;
   cnf_section=rl_malloc(sizeof(struct __conf_section)*ss);
+
   (*cnf_section).order=-1;
 #ifdef _DEBUG_
-  fprintf(stderr,"starting parsing ...\n");
   fprintf(stderr,"\'%s\'\n", fbuf);
 #endif
   while(ss!=0) {
@@ -209,20 +210,21 @@ static int read_syn_tree(char *buffer,int size)
 #endif
     if(read_section(cnf_section,fbuf,es)!=0) {
       fprintf(stderr,"error: reading section (%d).\n",es);
-      free(buf);
+      rl_free(buf);
       return -1;
     } 
     fbuf+=sizeof(char)*(strlen(cnf_section[es].name)+strlen("{}()")+
         __STRLEN(cnf_section[es].arg)+__STRLEN(cnf_section[es].data));
     ss--;es++;
   }
-  free(buf);
+  rl_free(buf);
 
   ss=0;  tsect=cnf_section;
   total_sections=es;
+
+  local_tree=rl_malloc(sizeof(struct syn_tree)*total_sections);
+
   while(ss!=es){
-    if(ss>MAX_SECTIONS) /*TODO:make reallocation after adding virtual hosts support*/
-      break;
 #ifdef _DEBUG_
     fprintf(stderr,"Section:\nName:%s;Argument:%s;Order:%d\nData:\n%s\n",
 	    (*tsect).name,(*tsect).arg,(*tsect).order,(*tsect).data);
@@ -232,9 +234,7 @@ static int read_syn_tree(char *buffer,int size)
     local_tree[ss].order=(*tsect).order;
     fflush(stdout);
     if((*tsect).data) {
-      char *expr=(*tsect).data;
-      char *uui=expr;
-      int i=0;
+      expr=(*tsect).data;      uui=expr;      i=0;
 #ifdef _DEBUG_
       fprintf(stderr,"ee '%s'\n",(*tsect).data);
 #endif
@@ -243,7 +243,7 @@ static int read_syn_tree(char *buffer,int size)
       if(__scan_line_expr((*tsect).data,sl)!=0)
         fprintf(stderr,"error: section has an error in expressions.\n");
       else {
-        local_tree[ss].vv=malloc(sizeof(struct variable)*(sl+1));
+        local_tree[ss].vv=rl_malloc(sizeof(struct variable)*(sl+1));
         while(sl!=0){
           expr=uui;
           while(*uui!='=') uui++;

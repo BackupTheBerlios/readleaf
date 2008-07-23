@@ -115,6 +115,7 @@ struct http_request {
   char *accept_encoding;
   char *accept_charset;
   char *referer;
+  char *cookie;
   size_t range;
   int keep_alive;
   connection_t connection_type;

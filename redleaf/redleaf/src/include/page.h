@@ -23,6 +23,8 @@
 #ifndef __PAGE_H__
 #define __PAGE_H__
 
+#include <http.h>
+
 #define CACHE_TIMEOUT  60
 
 /*page_t abstraction*/
@@ -35,6 +37,10 @@ struct page_t {
   size_t head_len;
   size_t bodysize; /*length of the body*/
   size_t range; /*range offset*/
+
+  /*functions*/
+  size_t (*read_d)(void *data,void *buf,size_t *rd_size);
+  int (*send_d)(void *data,struct http_request *p);
 
   time_t last_modify; /*last change of the page*/
   time_t last_stat; /*last modify for file*/

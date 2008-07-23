@@ -125,6 +125,7 @@ struct http_request *parse_http_request(const char *msg)
     else if(!strncmp(tmsg,"Connection:",11)) chs=7;
     else if(!strncmp(tmsg,"Referer:",8)) chs=8;
     else if(!strncmp(tmsg,"Range:",6)) chs=9;
+    else if(!strncmp(tmsg,"Cookie:",7)) chs=10;
     else if(!strncmp(tmsg,"X-",2)) chs=100;
     else chs=100;
     if(chs==100) break;
@@ -142,6 +143,7 @@ struct http_request *parse_http_request(const char *msg)
     case 4:      vstrfil(p->accept_encoding,len,tmsg);      break;
     case 5:      vstrfil(p->accept_charset,len,tmsg);      break;
     case 8:      vstrfil(p->referer,len,tmsg);      break;
+    case 10:      vstrfil(p->cookie,len,tmsg);      break;
     case 9:
       prst=strchr(tmsg,'=');
       prst++;
@@ -337,6 +339,7 @@ void free_http_request(struct http_request *p)
   if(p->accept_encoding) rl_free(p->accept_encoding);
   if(p->accept_charset) rl_free(p->accept_charset);
   if(p->referer) rl_free(p->referer);
+  if(p->cookie) rl_free(p->cookie);
   rl_free(p);
 
   return;
@@ -467,7 +470,7 @@ static void gen_error_page(struct page_t *page,int err)
   case NOT_FOUND:
     snprintf(page->head,255,"HTTP/1.1 404 Not Found\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(NOTFOUND_PAGE)+strlen(page->uri)+sizeof(char);
-    page->body=malloc(len);
+    page->body=rl_malloc(len);
     snprintf(page->body,len-1,NOTFOUND_PAGE,page->uri);
     page->head_len=strlen(page->head);
     page->bodysize=strlen(page->body);
@@ -475,7 +478,7 @@ static void gen_error_page(struct page_t *page,int err)
   case FORBIDDEN:
     snprintf(page->head,255,"HTTP/1.1 403 Forbidden\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(FORBIDDEN_PAGE)+strlen(page->uri)+sizeof(char);
-    page->body=malloc(len);
+    page->body=rl_malloc(len);
     snprintf(page->body,len-1,FORBIDDEN_PAGE,page->uri);
     page->head_len=strlen(page->head);
     page->bodysize=strlen(page->body);
@@ -487,7 +490,7 @@ static void gen_error_page(struct page_t *page,int err)
   default:
     snprintf(page->head,255,"HTTP/1.1 500 Internal Server Error\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-type: text/html\n\n",date);
     len=strlen(INTERNAL_SERVER_ERROR_PAGE)+sizeof(char);
-    page->body=malloc(len);
+    page->body=rl_malloc(len);
     snprintf(page->body,len-1,INTERNAL_SERVER_ERROR_PAGE);
     page->head_len=strlen(page->head);
     page->bodysize=strlen(page->body);
@@ -537,9 +540,9 @@ static void update_page(struct page_t *page,struct stat ystat)
 
   denormalize_page(page);
 
-  if(page->body)    free(page->body);
-  if(page->head)    free(page->head);
-  page->head=malloc(256*sizeof(char));
+  if(page->body)    rl_free(page->body);
+  if(page->head)    rl_free(page->head);
+  page->head=rl_malloc(256*sizeof(char));
   sprintf(page->head,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\nConnection-type: closed\nContent-Length: %ld\nContent-type: %s\n\n",
 	  date,ystat.st_size,mime_type(page->uri));
   page->head_len=strlen(page->head);
@@ -551,14 +554,14 @@ static void update_page(struct page_t *page,struct stat ystat)
     page->op=2;
   } else {
     page->bodysize=ystat.st_size;
-    page->body=malloc(ystat.st_size);
+    page->body=rl_malloc(ystat.st_size);
     fd=open(page->filename,O_RDONLY);
     read(fd,page->body,ystat.st_size);
     close(fd); 
     page->op=1;
   }
 
-  free(date);
+  rl_free(date);
 
   return;
 }
