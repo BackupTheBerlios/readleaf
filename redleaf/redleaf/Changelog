@@ -1,3 +1,6 @@
+- version 0.1:
+ * partial content
+ * fixed bugs
 - version 0.1beta:
  * added index.html index loading if it exists
  * fixed bug with http_read_dir

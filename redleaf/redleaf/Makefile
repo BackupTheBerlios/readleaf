@@ -1,15 +1,21 @@
 # by tirra <tirra.newly@gmail.com> (c) 2007
 # RedLeaf makefile
 
-DESTDIR=/usr/local
-ETCDIR=/usr/local/etc
-SHAREDIR=${DESTDIR}/share/redleaf
+-include config
+
+DESTDIR = /usr/local
+ETCDIR = ${DESTDIR}/etc
+SHAREDIR = ${DESTDIR}/share/redleaf
 
 all: defaults
 
 defaults: redleafd
 
-redleafd: 
+config.h: config.h.in
+	@echo "CFG: Configuring ..."
+	@./genconfh.sh
+
+redleafd: config.h 
 	@echo "BLD: Compiling redleafd ..."
 	@cd src; make
 
@@ -31,4 +37,5 @@ install: src/redleafd
 clean: 
 	@echo "MKF: cleaning ..."
 	@cd src; make clean
+	@rm -f config.h
 

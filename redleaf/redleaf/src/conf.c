@@ -30,19 +30,12 @@
 #include <conf.h>
 #include <misc.h>
 
-/*TODO: fix the bugs, add additional checking*/
-/*
- * FEATURE: add virtual hosting parsing and checking
- */
 /*configuration parser and structures*/
 
-#define MAX_SECTIONS  5
-
-#define LINE_BUF  1024
+#define LINE_BUF      1024
 
 #define __STRLEN(x) (((x) == NULL) ? 0 : strlen(x))
 #define __STRDUP(x) (((x) == NULL) ? strdup("ERR") : strdup(x))
-
 
 struct syn_tree {
   int order;
@@ -82,7 +75,6 @@ static struct __conf_section __readwseek_section(char *buf,int order);
 static int read_section(struct __conf_section *section,char *buf,int order);
 static int __scan_line_expr(char *buf,int n);
 static int read_syn_tree(char *buffer,int size);
-/*static int __synlen(const char **src);*/
 static struct variable *get_section_variables(const char *section,const char *name);
 
 char *get_general_value(const char *name)
@@ -97,11 +89,10 @@ char *get_general_value(const char *name)
     } else i++;
   
   i=0;
-  while(general.vv[i].var){
+  while(general.vv[i].var)
     if(!strcmp((const char*)general.vv[i].var,name))
       return general.vv[i].value;
     else i++;
-  }
 
   return NULL;
 }
@@ -128,13 +119,9 @@ struct variable *get_mimetype_variables(const char *typ)
 
 void load_configuration(char *buffer,int size)
 {
-
-  if(read_syn_tree(buffer,size)==-1) {
+  if(read_syn_tree(buffer,size)==-1) 
     fprintf(stderr,"Error reading config file, using defaults.\n");
-    //    __create_default_section();
-  } else {
-    //__check_local_tree_keywords();
-  }
+ 
   return;
 }
 
@@ -276,10 +263,12 @@ static int read_syn_tree(char *buffer,int size)
 static int __scan_line_expr(char *buf,int n)
 {
   char *o=buf;int h=0;
-  while(*o!='\0'){
+
+  while(*o!='\0') {
     if(*o=='=') h++;
     o++;
   }
+
   return n-h;
 }
 
@@ -289,7 +278,6 @@ static int read_section(struct __conf_section *section,char *buf,int order)
   char *Y=buf,T;
 
   while((*t).order!=-1)    t++; 
-
   while(*Y!='}') Y++;
   Y++;T=*Y;*Y='\0';
 
@@ -371,12 +359,9 @@ static int __is_section_head_valid(char *buf)
     if(*y==')') es++;
     y++;
   }
-  if(!ss || !es)
-    return -1;
-  if((ss-es)!=0)
-    return -1;
-  if(ss>1 || es>1)
-    return -1;
+  if(!ss || !es)    return -1;
+  if((ss-es)!=0)    return -1;
+  if(ss>1 || es>1)    return -1;
 
   return 0;
 }
@@ -385,7 +370,7 @@ static struct variable *get_section_variables(const char *section,const char *na
 {
   int i=0;
 
-  while(i<=MAX_SECTIONS)
+  while(i<=total_sections)
     if(!strcmp((const char*)local_tree[i].name,section) && 
       !strcmp((const char*)local_tree[i].argument,name))
       return local_tree[i].vv;
@@ -398,19 +383,11 @@ static int __scan_section_lines(char *buf)
 {
   int l=0;
   char *u=buf;
+
   while(*u!='}' && *u!='\0') {
-    if(*u==';') ++l;
-    u++;
+    if(*u==';') ++l;    u++;
   }
 
   return l;
 }
 
-/*static int __synlen(const char **src)
-{
-  int i=0;
-
-  while(src[i])    i++;
-
-  return i;
-  }*/
