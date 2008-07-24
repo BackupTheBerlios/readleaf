@@ -1,347 +1,217 @@
 /*
- * Originally written by Tirra <tirra.newly@gmail.com>
- * (c) 2008
+ * This program is free software; you can redistribute it and/or modify
+ * it under the terms of the GNU General Public License as published by
+ * the Free Software Foundation; either version 2 of the License, or
+ * (at your option) any later version.
  *
- * bbuddy.c: functions for allocating within buddy list (implementation),
- *           some useful defines (internally used).
+ * This program is distributed in the hope that it will be useful,
+ * but WITHOUT ANY WARRANTY; without even the implied warranty of
+ * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the
+ * GNU General Public License for more details.
  *
- * This program is free software; you can redistribute it and/or
- * modify it under the terms of the GNU General Public License as
- * published by the Free Software Foundation; either version 2, or (at
- * your option) any later version.
- * 
- * This program is distributed in the hope that it will be useful, but
- * WITHOUT ANY WARRANTY; without even the implied warranty of
- * MERCHANTABILITY or FITNESS FOR A PARTICULAR PURPOSE.  See the GNU
- * General Public License for more details.
- * 
  * You should have received a copy of the GNU General Public License
  * along with this program; if not, write to the Free Software
- * Foundation, Inc., 675 Mass Ave, Cambridge, MA 02139, USA.
+ * Foundation, Inc., 59 Temple Place - Suite 330, Boston, MA
+ * 02111-1307, USA.
+ *
+ * (c) Copyright 2006,2007,2008 MString Core Team <http://mstring.berlios.de>
+ * (c) Copyright 2008 Tirra <tirra.newly@gmail.com>
+ *
+ * mm/bbuddy.c: binary buddy abstraction implementation
+ *              part of MuiString mm
+ *
  */
 
-#include <stdlib.h>
-#include <stdio.h>
-#include <string.h>
-#include <unistd.h>
-#include <sys/types.h>
+#include <eza/arch/types.h>
+#include <mm/bbuddy.h>
 
-#include "bbuddy.h"
-
-#define nil  0x0
-#define fil  0xffffffff
-
-/*TODO: optimize for stack size and speed, implement S1 and verbose features*/
+/* indexing */
+#define bbuddy_indexp(p,n)  (((p >> 5) > 1) ? ((p >> 5)+(n >> 5)) : p >> 5)
+#define bbuddy_indexbn(n)   ((n >> 5) ? n%32 : n)
 
 /* local functions prototypes */
-static int16_t __red_bt(reg_desc_t *r,u_int8_t p,u_int8_t l);
-static int16_t __reg_bt(reg_desc_t *r,u_int8_t p);
-static int __get_offset(reg_desc_t *r,u_int8_t p);
-#ifdef _DEBUG_
-static void __print_bitmap(u_int8_t size,u_int64_t o);
-static void __print_region(reg_desc_t *ss);
-static void __print_region_p(reg_desc_t *ss);
-#endif
+static uint32_t __bbuddy_block_alloc(bbuddy_t *b,uint32_t align,uint8_t m_flag);
+static uint32_t __bbuddy_split_up(bbuddy_t *b,uint32_t align,uint32_t num);
+static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i);
 
-/* general implementation */
-int __init_reg_desc(reg_desc_t *ss,void *p,u_int16_t size) /*init region descriptor*/
+/* init buddy system with already allocated pointer */
+uint8_t bbuddy_init(bbuddy_t *b,uint32_t max_part)
 {
-  int8_t i;
+  int yy=((max_part >> 5) << 1),i;
+  char *ptr=(char*)b;
 
-  if(!ss || !p) {
-#ifdef _DEBUG_
-    fprintf(stderr,"Given pointers are invalid (nil)\n");
-#endif
+  if(b && max_part) {
+    ptr+=sizeof(bbuddy_t);
+    b->pbmp=(uint32_t*)ptr;
+    ptr+=(sizeof(uint32_t)*(((max_part >> 5) > 1) ? (max_part >> 5)+2 : (max_part >> 5)+1));
+    b->nbmp=(uint32_t*)ptr;
+  } else
     return 1;
+
+  b->pn=max_part;
+
+  max_part>>=5;
+
+  for(i=0;i<yy;i++) {
+    b->nbmp[i]=nil;
+    b->pbmp[i]=fil;
   }
-  if(size<512 || size%64) {
-#ifdef _DEBUG_
-    fprintf(stderr,"Given size `%d' is incorrect.\n",size);
-#endif
-    return 1;
-  }
-  ss->size=size;
-  ss->__reg_start=p;
-  for(i=0;i<4;i++)
-    ss->n[i]=nil;
-  for(i=0;i<4;i++)
-    ss->p[i]=fil;
-  /*init first regions*/
-  ss->n[0] |= (1 << 0);
-  ss->n[0] |= (1 << 1);
+
+  /* init first */
+  b->nbmp[0] |= (1 << 0);
+  b->nbmp[0] |= (1 << 1);
 
   return 0;
 }
 
-void *__blalloc_ireg(reg_desc_t *r,u_int16_t byte) /* allocate block within region*/
+/* allocate block with the given align
+ * level, returns index in align level
+ */
+uint32_t bbuddy_block_alloc(bbuddy_t *b, uint32_t align)
 {
-  u_int16_t block_size,i=0;
-  u_int32_t offset;
+  return __bbuddy_block_alloc(b,align,nil);
+}
 
-  if(!r) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blalloc_ireg: descriptor is nil.\n");
-#endif
-    return NULL;
-  }
-  if(!byte)
-    return NULL;
-  if(byte>r->size) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blalloc_ireg: requested size too big for tthis pool.\n");
-#endif
-    return NULL;
-  }
-  while(r->size/(1 << i) >= byte && i<7) {
-    block_size=1 << i;
+/* release block, num is points to the smaller 
+ * blocks counter
+ */
+uint32_t bbuddy_block_release(bbuddy_t *b,uint32_t num)
+{
+  return __bbuddy_block_release(b,num,0);
+}
+
+static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i)
+{
+  uint32_t p_indx,n_indx;
+  uint32_t layer=b->pn,ls=layer,a=0;
+
+  /* first look up on higher possible layer
+   * if there are now, look deeper
+   */
+  if(num>b->pn)
+    return EINVALIDINDX; /* error encount */
+
+  while(ls) {    ls>>=1; a++;  } 
+  if(i==0) {
+    for(i=(a-1);i>0;i--) {
+      if(num%2) break;
+      else num>>=1;
+    }
+  } 
+
+  layer=(1 << i);
+
+  n_indx=(layer<32) ? (num+layer) : bbuddy_indexbn(num);
+  p_indx=bbuddy_indexp(layer,num);
+  if(!(b->nbmp[p_indx] & (1 << n_indx)) && (b->pbmp[p_indx] & (1 << n_indx))) { 
+    b->nbmp[p_indx] |= (1 << n_indx); /* mark free */
+    return __bbuddy_split_up(b,layer,num);
+  } else if(!(b->nbmp[p_indx] & (1 << n_indx)) && !(b->pbmp[p_indx] & (1 << n_indx))) { /* going deep */
     i++;
-  }
-  if((offset=__get_offset(r,block_size))<0) {
-#ifdef _DEBUG_
-    fprintf(stderr,"No space avialable for this block.\n");
-#endif
-    return NULL;
-  }
-
-  return r->__reg_start+(block_size*offset);
-}
-
-void __blfree_ireg(reg_desc_t *r,void *p) /* free block within given region */
-{
-  u_int32_t offset;
-  u_int8_t i;
-  u_int8_t blk=0,off,n,area;
-
-  if(!r) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blfree_ireg: Region descriptor is nil.\n");
-#endif
-    return;
-  }
-  if(p>(r->__reg_start+r->size) && p<r->__reg_start) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blfree_ireg: Pointer is invalid for this region\n");
-#endif
-    return;
-  }
-
-  /*try to determine */
-  offset=p-r->__reg_start;
-  //  printf("offset=%d\n",offset);
-  for(i=0;i<7;i++) 
-    if(!(offset%(r->size/(1 << i)))){
-      blk=(1 << i);
-      break;
-    }
-  if(!blk) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blfree_ireg: Invalid pointer given.\n");
-#endif
-    return;
-  }
-  for(;i<7;i++){
-    n=offset/(r->size/blk);
-    off=(1 << i);
-    area=(1 << i)/32;
-    if(off>31) 
-      off-=32*area;
-    if(n>31) n-=32;
-    if((r->p[area] & (1 << (off+n))) && !(r->n[area] & (1 << (off+n)))) {
-      //printf("found ! block size = %d, area: %d, pitch: %d\n",r->size/(1 << i),area,off+n);
-      while(blk>0) {
-	/*check free*/
-	r->n[area] |= (1 << (off+n));
-	r->p[area] |= (1 << (off+n));
-	/*look if we're can split block*/
-	if(blk>1) {
-	  if((off+n)%2 && r->n[area] & (1 << ((off+n)-1))) /*left buddy*/ {
-	    n--;
-	    r->n[area] &= ~(1 << (off+n)); /*clean*/
-	    r->n[area] &= ~(1 << ((off+n)+1));
-	  }
-	  else if(!((off+n)%2) && r->n[area] & (1 << ((off+n)+1))) /*right buddy*/ {
-	    r->n[area] &= ~(1 << (off+n)); /*clean*/
-	    r->n[area] &= ~(1 << ((off+n)+1));
-	  }
-	  else
-	    break;
-	} else 
-	  break;
-	/*okay calculate separated parent*/
-	if(area==1) area=0;
-	else if(area>1) area=1;
-	n=n/2; blk/=2; off=blk;
-	//printf("off %d,blk %d, n %d, area %d\n",off,blk,n,area);
-      }
-      
-      break;
-    }
-    blk*=2;
-  }
-
-  return;
-}
-
-void *__blrealloc_ireg(reg_desc_t *r,void *p,u_int16_t size) /* reallocate block within region to given size */
-{
-  int8_t i;
-  u_int16_t offset,blk=0;
-
-  if(!r) {
-#ifdef _DEBUG_
-    fprintf(stderr,"Given region pointer are invalid.\n");
-#endif
-    return p;
-  }
-  if(!size) {
-    __blfree_ireg(r,p);
-    return NULL;
-  }
-  if(p>(r->__reg_start+r->size) && p<r->__reg_start) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blrealloc_ireg: Pointer is invalid for this region\n");
-#endif
-    return p;
-  }
-  /*determine*/
-  for(i=0;i<7;i++) 
-    if(!(offset%(r->size/(1 << i)))) {
-      blk=(1 << i);
-      break;
-    }
-  if(!blk) {
-#ifdef _DEBUG_
-    fprintf(stderr,"__blfree_ireg: Invalid pointer given.\n");
-#endif
-    return p;
-  }
-  if(blk>=size)
-    return p;
-  else {
-    __blfree_ireg(r,p);
-    return __blalloc_ireg(r,size);
-  }
-
-  return p;
-}
-
-/* local functions implementation */
-static int16_t __red_bt(reg_desc_t *r,u_int8_t p,u_int8_t l)
-{
-  u_int8_t q,a,i,area=l/(8*(sizeof(u_int32_t))),off=l;
-
-  if(!l) {
-#ifdef _DEBUG_
-    fprintf(stderr,"No appropriate block size found.\n");
-#endif
-    return -1;
-  }
-
-  if(off>((8*(sizeof(u_int32_t)))-1))    off=0; /*trancate*/
-
-  /*try to find appropriate free block*/
-  for(i=0;i<l;i++) {
-    if(i == (8*(sizeof(u_int32_t)))) {
-      area++;
-      off-=(8*(sizeof(u_int32_t)));
-    }
-
-    if(r->n[area] & (1 << (off+i))) {
-      q=1;
-      if(p!=l) { /*separate*/
-	r->n[area] &= ~(1 << (off+i)); /*mark that separated && busy*/
-	r->p[area] &= ~(1 << (off+i)); /*separated*/
-	/*mark below block avialable*/
-	if(off*2 == (8*(sizeof(u_int32_t)))) {
-	  area++;
-	  off=0;
-	} 
-	if(l*2 == ((8*(sizeof(u_int32_t)))*2)) {
-	  off=0; area++;
-	  if((2*i) > ((8*(sizeof(u_int32_t)))-1))
-	    area++;
-	}
-
-	for(a=0;a<2;a++)
-	  r->n[area] |= (1 << ((off*2)+(2*i)+a));
-
-	return __red_bt(r,p,l*2);
-      } else { /*allocate*/
-	r->n[area] &= ~(1 << (off+i)); /*mark that separated && whole used*/
-	r->p[area] |= (1 << (off+i)); /*whole used*/
-	return i;
-      }
-    } else q=0;
-  }
-  
-  if(!q)
-    return __red_bt(r,p,l/2);
-  
-  return -1;
-}
-
-static int16_t __reg_bt(reg_desc_t *r,u_int8_t p)
-{
-  return __red_bt(r,p,p);
-}
-
-static int __get_offset(reg_desc_t *r,u_int8_t p)
-{
-  int16_t voffset;
-
-  if((voffset=__reg_bt(r,p))<0) {
-#ifdef _DEBUG_
-    fprintf(stderr,"There are no blocks avialable for this size;\n");
-#endif
-    return -1;
-  }
-
-  return voffset*(r->size/p);
-}
-
-#ifdef _DEBUG_
-static void __print_bitmap(u_int8_t size,u_int64_t o)
-{
-  int8_t i;
-  for(i=0;i<size;i++) {
-    if(o & (1 << i))
-      printf("1");
+    if(i>=a)
+      return EBUDDYCORRUPED;
     else
-      printf("0");
+      return __bbuddy_block_release(b,num*2,i);
+
   }
-  printf("\n");
 
-  return;
+  return 0;
 }
 
-static void __print_region(reg_desc_t *ss)
+static uint32_t __bbuddy_split_up(bbuddy_t *b,uint32_t align,uint32_t num)
 {
-  printf("area 0: ");
-  __print_bitmap(32,ss->n[0]);
-  printf("area 0: R122444488888888FFFFFFFFFFFFFFFF\n");
-  printf("area 1: ");
-  __print_bitmap(32,ss->n[1]);
-  printf("area 2: ");
-  __print_bitmap(32,ss->n[2]);
-  printf("area 3: ");
-  __print_bitmap(32,ss->n[3]);
+  uint32_t p_indx=bbuddy_indexp(align,num), n_indx=(align<32) ? (num+align) : bbuddy_indexbn(num);
+  int16_t succ=((num%2) ? -1 : 1);
 
-  return;
+  if(b->nbmp[p_indx] & (1 << (n_indx+succ))) { /* can be splitted */
+    b->nbmp[p_indx] &= ~(1 << (n_indx+succ)); /* mark */
+    b->nbmp[p_indx] &= ~(1 << (n_indx));
+    b->pbmp[p_indx] |= ~(1 << (n_indx+succ));
+    b->pbmp[p_indx] |= ~(1 << (n_indx));
+    /* mark parent non-separated and free */
+    if(succ<0)      num--;
+    align>>=1; num>>=1;
+    n_indx=(align<32) ? (num+align) : bbuddy_indexbn(num);
+    p_indx=bbuddy_indexp(align,num);
+    b->nbmp[p_indx] |= (1 << n_indx);
+    b->pbmp[p_indx] |= (1 << n_indx);
+    if(align>1)
+      return __bbuddy_split_up(b,align,num);
+  }
+
+  return 0;
 }
 
-static void __print_region_p(reg_desc_t *ss)
+/* allocate block, returns number of block in bitmap area */
+static uint32_t __bbuddy_block_alloc(bbuddy_t *b,uint32_t align,uint8_t m_flag)
 {
-  printf("area 0: ");
-  __print_bitmap(32,ss->p[0]);
-  printf("area 0: R122444488888888FFFFFFFFFFFFFFFF\n");
-  printf("area 1: ");
-  __print_bitmap(32,ss->p[1]);
-  printf("area 2: ");
-  __print_bitmap(32,ss->p[2]);
-  printf("area 3: ");
-  __print_bitmap(32,ss->p[3]);
+  uint32_t p_indx=align>>5;
+  uint32_t n_indx=0,i=0,o=0;
 
-  return;
+  if(p_indx) {
+    for(i=0;i<p_indx;i++) {
+      if(b->nbmp[p_indx+i]!=0x0)
+	goto __is_free_long;
+    }
+    m_flag++;
+    return __bbuddy_block_alloc(b,align/2,m_flag);
+  }
+
+  if(!p_indx) { /* checking small layers, big blocks */
+    o=align << 1;
+    for(i=align;i<o;i++) 
+      if((b->nbmp[p_indx] & (1 << i)) && !m_flag) {
+	b->nbmp[p_indx] &= ~(1 << i); /* used */
+	b->pbmp[p_indx] |= (1 << i); /* not separated */
+	return i-align;
+      } else if((b->nbmp[p_indx] & (1 << i)) && m_flag) {
+	b->nbmp[p_indx] &= ~(1 << i); /* used */
+	b->pbmp[p_indx] &= ~(1 << i); /* separated */
+	/* mark childs free */
+	align<<=1;	 i<<=1;
+	p_indx=align >> 5;
+	n_indx=bbuddy_indexbn(i);
+	b->nbmp[p_indx] |= (1 << n_indx);
+	b->nbmp[p_indx] |= (1 << (n_indx+1));
+	b->pbmp[p_indx] |= (1 << n_indx);
+	b->pbmp[p_indx] |= (1 << (n_indx+1));
+
+	m_flag--;
+	return __bbuddy_block_alloc(b,align,m_flag);
+      }
+    if(i<2)
+      return ENOBLOCK;
+    else {
+      m_flag++;
+      return __bbuddy_block_alloc(b,align/2,m_flag);
+    }
+  }
+
+ __is_free_long: 
+  while(o<32) {
+    if((b->nbmp[p_indx+i] & (1 << o)) && !m_flag) { /* yep, found */
+      b->nbmp[p_indx+i] &= ~(1 << o); /* used */
+      b->pbmp[p_indx+i] |= (1 << o); /* not separated */
+      return (p_indx > 1) ? (((p_indx+i)-2) << 5)+o : o;
+    } else if((b->nbmp[p_indx+i] & (1 << o)) && m_flag) { /* make sep */
+      b->nbmp[p_indx+i] &= ~(1 << o); /* used */
+      b->pbmp[p_indx+i] &= ~(1 << o); /* separated */
+      /* mark childs free */
+      align*=2;	p_indx=align/32; o*=2;
+      p_indx=bbuddy_indexp(align,o);
+      n_indx=bbuddy_indexbn(o);
+      b->nbmp[p_indx] |= (1 << n_indx);
+      b->nbmp[p_indx] |= (1 << (n_indx+1));
+      b->pbmp[p_indx] |= (1 << n_indx);
+      b->pbmp[p_indx] |= (1 << (n_indx+1));
+      
+      m_flag--;
+      return __bbuddy_block_alloc(b,align,m_flag);
+    }
+    o++;
+  }
+
+
+  return 0;
 }
-#endif /*_DEBUG_*/
 
