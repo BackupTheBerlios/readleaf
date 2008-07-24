@@ -16,21 +16,27 @@
  *
  * (c) Copyright 2006,2007,2008 MString Core Team <http://mstring.berlios.de>
  * (c) Copyright 2008 Tirra <tirra.newly@gmail.com>
+ * (c) Copyright 2007,2008 ReadLeaf Core Team <http://readleaf.berlios.de>
  *
- * include/mm/bbuddy.h: binary buddy abstraction implementation
- *                      part of MuiString mm
+ * Binary buddy implementation
  *
  */
 
 #ifndef __MM_BBUDDY_H__
 #define __MM_BBUDDY_H__
 
-#include <eza/arch/types.h>
+#include <sys/types.h>
 
 /* typical errors */
 #define ENOBLOCK        65535
 #define EBUDDYCORRUPED  65534
 #define EINVALIDINDX    65533
+
+#define nil  0x0
+#define fil  0xffffffff
+
+typedef u_int32_t uint32_t;
+typedef u_int8_t uint8_t;
 
 typedef struct __bbuddy_type {
   uint32_t *pbmp;

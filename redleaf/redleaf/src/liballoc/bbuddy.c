@@ -16,14 +16,15 @@
  *
  * (c) Copyright 2006,2007,2008 MString Core Team <http://mstring.berlios.de>
  * (c) Copyright 2008 Tirra <tirra.newly@gmail.com>
+ * (c) Copyright 2007,2008 ReadLeaf Core Team <http://readleaf.berlios.de>
  *
- * mm/bbuddy.c: binary buddy abstraction implementation
- *              part of MuiString mm
+ * Binary buddy implementation
  *
  */
 
-#include <eza/arch/types.h>
-#include <mm/bbuddy.h>
+#include <sys/types.h>
+
+#include <liballoc/bbuddy.h>
 
 /* indexing */
 #define bbuddy_indexp(p,n)  (((p >> 5) > 1) ? ((p >> 5)+(n >> 5)) : p >> 5)
