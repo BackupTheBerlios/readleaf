@@ -5,7 +5,7 @@
 
 INCLUDES+=../include/
 CFLAGS=-Wall -g
-OBJS= bbuddy.o
+OBJS= bbuddy.o memmap.o
 
 
 default: all
