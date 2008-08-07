@@ -19,7 +19,7 @@ redleafd: config.h
 	@echo "BLD: Compiling redleafd ..."
 	@cd src; make
 
-install: src/redleafd
+install: redleafd
 	@echo "INS: creating directories ..."
 	@mkdir -p ${DESTDIR}/bin
 	@mkdir -p ${SHAREDIR}/www

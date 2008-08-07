@@ -6,7 +6,7 @@ HEADERS=include/http.h include/conf.h include/file.h include/misc.h \
 	include/serv.h include/file.h include/http_read_dir.h
 CFLAGS=-g -Wall
 OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o file.o \
-	libdata/libdata.a liballoc/liballoc.a
+	    libdata/libdata.a liballoc/liballoc.a
 INCLUDES+=include/
 
 all: defaults
@@ -25,8 +25,8 @@ liballoc/liballoc.a:
 	@echo "BLD: Building liballoc.a ..."
 	@cd liballoc;make
 
-redleafd: $(OBJS) 
-	@gcc $(OBJS) -o redleafd
+redleafd: $(OBJS) $(LIBS)
+	@gcc $(OBJS) $(LIBS) -o redleafd
 
 clean:
 	@echo "RM: *.o"

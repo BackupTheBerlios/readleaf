@@ -30,6 +30,7 @@
 #include <conf.h>
 #include <page.h>
 #include <misc.h>
+#include <liballoc/memmap.h>
 
 #include "../config.h"
 
@@ -45,7 +46,7 @@ static void _print_version(void)
 
 int main(int argc, char **argv)
 {
-  int size,cfsize;
+  int size,cfsize=0;
   char *buf=NULL;
   char *cnfnm=NULL;
   char *dd=NULL;
@@ -76,13 +77,16 @@ int main(int argc, char **argv)
     printf("cn: %s\n",cnfnm);
   }
 
+//  mem_proto_init_default(0);
+
   buf=(char*)mmap_file(cnfnm,&size);
   load_configuration(buf,size);
   init_page_t_cache();
   main_process(argc,argv);
 
   munmap_file((void *)buf,size);
-  rl_free(cnfnm);
+  if(cfsize)
+    rl_free(cnfnm);
 
   return 0;
 }

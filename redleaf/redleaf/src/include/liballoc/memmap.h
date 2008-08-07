@@ -26,17 +26,32 @@
 #include <sys/types.h>
 
 #include <liballoc/bbuddy.h>
+#include <libdata/usrtc.h>
 
 #define MAP_LOCKABLE     1
 #define MAP_NOTLOCKABLE  0
 
+#define MPROTO_PRIV    (1 << 0)
+#define MPROTO_LOCK    (1 << 1)
+#define MPROTO_SHARED  (1 << 2)
+#define MPROTO_SLAB    (1 << 3)
+
 #define mem_area_wait_lock(p)  if(p->lock>MAP_LOCKABLE) while(p->lock!=MAP_LOCKABLE) usleep(100);
 
 struct mem_area_t {
-  size_t size;
-  void *area;
-  bbuddy_t *map;
+  size_t size;   /*size of area*/
+  size_t commit; /*commited memory amount*/
+  void *area;    /*mapped area pointer*/
+  bbuddy_t *map; /*buddy allocator*/
+  u_int8_t lock; /*sync primitive*/
+  u_int32_t ref; /*referenced pools count*/
+};
+
+struct mem_proto_t {
+  usrtc_t *proto; /*structure*/
+  pid_t owner;
   u_int8_t lock;
+  u_int8_t flags;
 };
 
 /* mem_area_alloc() - maps a private mem area */

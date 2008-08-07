@@ -28,14 +28,64 @@
 #include <sys/mman.h>
 #include <sys/types.h>
 
+#include <libdata/usrtc.h>
+#include <libdata/macro.h>
 #include <liballoc/bbuddy.h>
 #include <liballoc/memmap.h>
 
+#define AREA_SIZE  (1 << 17)
+
+struct __chunkm_t {
+  struct mem_area_t *d;
+  struct __chunkm_t *next;
+};
+
+static struct __chunkm_t *chead=NULL;
+
+/*locally used functions*/
+static void *__mab_alloc(struct mem_area_t *p,size_t size);
+static void __mab_free(struct mem_area_t *p,void *m);
+
+void *balloc(size_t size)
+{
+  struct __chunkm_t *__chead=chead;
+
+  while((__chead->d->size-__chead->d->commit)<size) {
+    if(__chead->next==NULL) {
+      goto __extend;
+      break;
+    }
+    __chead=__chead->next;
+  }
+
+  if(__chead) 
+    return __mab_alloc(__chead->d,size);
+
+  if(!chead) {
+    chead=slab_alloc(sizeof(struct __chunkm_t));
+    chead->next=NULL;
+    chead->d=slab_alloc(sizeof(struct mem_area_t));
+    return __mab_alloc(chead->d,size);
+  } else {
+  __extend:
+    __chead->next=slab_alloc(sizeof(struct __chunkm_t));
+    __chead=__chead->next;
+    __chead->next=NULL;
+    __chead->d=slab_alloc(sizeof(struct mem_area_t));
+  }
+
+  return __mab_alloc(__chead->d,size);
+}
+
+void bfree(void *pp)
+{
+  return;
+}
 
 /* mem_area_alloc() - maps a private mem area */
 u_int8_t mem_area_alloc(struct mem_area_t *p,size_t size,bbuddy_t *map)
 {
-  void *v=mmap(NULL,size,PROT_READ | PROT_WRITE,MAP_PRIVATE,-1,(off_t)0);
+  void *v=mmap(0,size,PROT_READ | PROT_WRITE,MAP_PRIVATE | MAP_ANON,-1,(off_t)0);
 
   if(v==MAP_FAILED) {
     fprintf(stderr,"Mapping failed.\n");
@@ -46,6 +96,8 @@ u_int8_t mem_area_alloc(struct mem_area_t *p,size_t size,bbuddy_t *map)
   p->map=map;
   p->area=v;
   p->lock=0;
+  p->ref=0;
+  p->commit=0;
 
   return 0;
 }
@@ -64,6 +116,8 @@ u_int8_t mem_area_public_alloc(struct mem_area_t *p,size_t size,bbuddy_t *map,in
   p->map=map;
   p->area=v;
   p->lock=lock_flag;
+  p->ref=0;
+  p->commit=0;
 
   return 0;
 }
@@ -79,6 +133,9 @@ u_int8_t mem_area_release(struct mem_area_t *p)
     fprintf(stderr,"Trying to release not mapped mem area.\n");
     return 1;
   }
+
+  if(p->ref)
+    fprintf(stderr,"Releasing area that maybe used.\n");
 
   if(munmap(p->area,p->size)) {
     fprintf(stderr,"Unmapping failed.\n");
@@ -120,4 +177,31 @@ inline u_int8_t mem_area_unlock(struct mem_area_t *p)
   return 0;
 }
 
+static void __mab_free(struct mem_area_t *p,void *m)
+{
+  u_int32_t layer;
 
+  if(bbuddy_block_release(p->map,(m-(p->area))/p->map->pn,&layer)) {
+    fprintf(stderr,"Invalid pointer to free.\nExiting.\n");
+    exit(3);
+  }
+  p->commit-=p->size/layer;
+
+  return;
+}
+
+static void *__mab_alloc(struct mem_area_t *p,size_t size)
+{
+  u_int32_t layer,i;
+
+  if(size>p->size)
+    return NULL;
+  layer=p->size/size;
+  for(i=0;(1 << i)<=p->map->pn;i++)    
+    if(layer >= (1 << i) && layer < (1 << (i+1)))      break;
+  layer=i;
+  p->commit+=p->size/layer;
+  i=bbuddy_block_alloc(p->map,(1 << layer));
+
+  return (void *)((char*)p->area+(i*(p->size/(1 << layer))));
+}

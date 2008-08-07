@@ -51,7 +51,7 @@ typedef struct __bbuddy_type {
 /* functions */
 extern uint8_t bbuddy_init(bbuddy_t *b,uint32_t max_part);
 extern uint32_t bbuddy_block_alloc(bbuddy_t *b, uint32_t align);
-extern uint32_t bbuddy_block_release(bbuddy_t *b,uint32_t num);
+extern uint32_t bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t *layer);
 
 #endif /* __MM_BBUDDY_H__*/
 

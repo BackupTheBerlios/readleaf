@@ -33,7 +33,7 @@
 /* local functions prototypes */
 static uint32_t __bbuddy_block_alloc(bbuddy_t *b,uint32_t align,uint8_t m_flag);
 static uint32_t __bbuddy_split_up(bbuddy_t *b,uint32_t align,uint32_t num);
-static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i);
+static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i,uint32_t *__layer);
 
 /* init buddy system with already allocated pointer */
 uint8_t bbuddy_init(bbuddy_t *b,uint32_t max_part)
@@ -76,12 +76,12 @@ uint32_t bbuddy_block_alloc(bbuddy_t *b, uint32_t align)
 /* release block, num is points to the smaller 
  * blocks counter
  */
-uint32_t bbuddy_block_release(bbuddy_t *b,uint32_t num)
+uint32_t bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t *layer)
 {
-  return __bbuddy_block_release(b,num,0);
+  return __bbuddy_block_release(b,num,0,layer);
 }
 
-static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i)
+static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i,uint32_t *__layer)
 {
   uint32_t p_indx,n_indx;
   uint32_t layer=b->pn,ls=layer,a=0;
@@ -106,13 +106,14 @@ static uint32_t __bbuddy_block_release(bbuddy_t *b,uint32_t num,uint32_t i)
   p_indx=bbuddy_indexp(layer,num);
   if(!(b->nbmp[p_indx] & (1 << n_indx)) && (b->pbmp[p_indx] & (1 << n_indx))) { 
     b->nbmp[p_indx] |= (1 << n_indx); /* mark free */
+    *__layer=layer;
     return __bbuddy_split_up(b,layer,num);
   } else if(!(b->nbmp[p_indx] & (1 << n_indx)) && !(b->pbmp[p_indx] & (1 << n_indx))) { /* going deep */
     i++;
     if(i>=a)
       return EBUDDYCORRUPED;
     else
-      return __bbuddy_block_release(b,num*2,i);
+      return __bbuddy_block_release(b,num*2,i,__layer);
 
   }
 
