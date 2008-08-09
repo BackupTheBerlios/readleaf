@@ -1,11 +1,11 @@
 # by tirra <tirra.newly@gmail.com> (c) 2006, 2007
 # makefile for redleaf sources
 
-SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c page.c file.c
+SOURCES=http.c http_read_dir.c conf.c misc.c serv.c main.c page.c file.c modula.c
 HEADERS=include/http.h include/conf.h include/file.h include/misc.h \
 	include/serv.h include/file.h include/http_read_dir.h
 CFLAGS=-g -Wall
-OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o file.o \
+OBJS=http.o conf.o misc.o serv.o main.o http_read_dir.o page.o file.o modula.o \
 	    libdata/libdata.a liballoc/liballoc.a
 INCLUDES+=include/
 
@@ -26,7 +26,7 @@ liballoc/liballoc.a:
 	@cd liballoc;make
 
 redleafd: $(OBJS) $(LIBS)
-	@gcc $(OBJS) $(LIBS) -o redleafd
+	@gcc $(OBJS) $(LIBS) -o redleafd -rdynamic -ldl
 
 clean:
 	@echo "RM: *.o"

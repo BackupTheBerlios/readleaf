@@ -30,7 +30,7 @@
 #include <conf.h>
 
 #define IMPLEMENTED      0
-#define NOT_IMPLEMENTED  1
+#define ABSENT           1
 
 #define MOD_OPEN   0
 #define MOD_CLOSE  1
@@ -58,6 +58,7 @@ typedef struct ___modula_session_t {
 
 /*modula_t - main modula's astraction*/
 typedef struct ___modula_t {
+  char *cname; /*config name entry*/
   modula_info_t info; /*generalized information*/
   char *registered_mime_type; /*registered mime type*/
   void *data; /*some data, if needed*/
@@ -72,8 +73,11 @@ typedef struct ___modula_t {
   size_t (*modula_session_write)(modula_session_t *session,void *buf,size_t size);
   size_t (*modula_session_seek)(modula_session_t *session,off_t offset);
   /*misc functions*/
-  int (*modula_check_capatibilies)(struct __modula_t *p,int op_code); /*check some capatibility*/
+  int (*modula_check_capatibilies)(int op_code); /*check some capatibility*/
 } modula_t;
+
+int init_modulas_subsystem(void);
+modula_t *modula_lookup(char *mime_type);
 
 #endif /*__MODULA_H__*/
 

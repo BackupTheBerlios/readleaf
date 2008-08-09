@@ -29,6 +29,7 @@
 
 #include <conf.h>
 #include <misc.h>
+#include <modula.h>
 
 /*configuration parser and structures*/
 
@@ -76,6 +77,19 @@ static int read_section(struct __conf_section *section,char *buf,int order);
 static int __scan_line_expr(char *buf,int n);
 static int read_syn_tree(char *buffer,int size);
 static struct variable *get_section_variables(const char *section,const char *name);
+
+int conf_walk_modulas(int (*found_hook)(struct variable *array,char *name))
+{
+  int i=0;
+
+  while(i<=total_sections) {
+    if(!strcmp((const char*)local_tree[i].name,"Modula"))
+      found_hook(local_tree[i].vv,local_tree[i].argument);
+    i++;
+  }
+
+  return 0;
+}
 
 char *get_general_value(const char *name)
 {

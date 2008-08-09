@@ -43,5 +43,6 @@ struct variable *get_mimetype_variables(const char *typ);
 /*read syntax and context tree*/
 void load_configuration(char *buffer,int size);
 void free_conf_tree(void);
+int conf_walk_modulas(int (*found_hook)(struct variable *array,char *name));
 
 #endif
