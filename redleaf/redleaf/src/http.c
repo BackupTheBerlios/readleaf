@@ -57,6 +57,7 @@ Content-Type: text/html; charset=utf-8\n\n"
 #define MOVED_PERMANENTLY_PAGE  "<html><head><title>Moved permanently</title></head><body>\
 <h1>Moved Permanently</h1>http://%s%s<hr>RedLeaf v0.2a</body></html>"
 
+
 /*bad request page, doesn't cached it's a static*/
 struct page_t *bad_request_page = NULL;
 
@@ -75,12 +76,27 @@ static void decode_uri(char *uri);
 static inline char *skip_blanks(char *p);
 static inline char *skip_nblanks(char *p);
 
+static void print_substr(char *p1,char *p2);
+
+static void print_substr(char *p1,char *p2){
+  if(p2>p1){
+    int len = p2-p1;
+    char *ptr = rl_malloc(sizeof(char)*len+1);
+    if(ptr){
+      memset(ptr,'\0',len+1);
+      strncat(ptr,p1,len);
+      fprintf(stderr,"[D]: %s\n",ptr);
+      rl_free(ptr);
+    }
+  }
+};
+
 #define vstrfil(p,len,tb) p=rl_malloc(len+1); memset(p,'\0',len+1); p=strncat(p,tb,len);
 
 struct http_request *parse_http_request(const char *msg)
 {
   struct http_request *p=NULL;
-  char *tmsg=(char *)msg,*ttmsg=NULL;
+  char *tmsg=(char *)msg,*ttmsg=NULL,*tttmsg=NULL;
   char *prst,*pprst;
   int len=0,chs=0;
 
@@ -95,6 +111,8 @@ struct http_request *parse_http_request(const char *msg)
     p->method=GET;
   else if(!strncmp(msg,"POST",4))
     p->method=POST;
+  else if(!strncmp(msg,"HEAD",4))
+    p->method=HEAD;
   else {
   bad_request:
     p->op_code=BAD_REQUEST;
@@ -103,13 +121,23 @@ struct http_request *parse_http_request(const char *msg)
 
   tmsg=skip_nblanks((char *)msg); /* get URI */
   tmsg=skip_blanks(tmsg);
-  ttmsg=skip_nblanks(tmsg);
-  len=(int)(ttmsg-tmsg); 
+  ttmsg=strchr(tmsg,'?');/*get QUERY_STRING*/
+  if((ttmsg-tmsg)>0){
+    tttmsg = skip_nblanks(ttmsg+1);
+    /* QUERY_STRING */
+    print_substr(ttmsg+1,tttmsg);
+  }
+  else{
+    ttmsg=skip_nblanks(tmsg);
+  }
+  len=(int)(ttmsg-tmsg);
   p->uri=rl_malloc(len+1);
   memset(p->uri,'\0',len+1);
   p->uri=strncat(p->uri,tmsg,len);
-  tmsg=skip_blanks(ttmsg); /*check protocol and version*/
-  if(strncmp(tmsg,"HTTP/1.1",8) && strncmp(tmsg,"HTTP/1.0",8)) 
+  
+  if(tttmsg)tmsg=skip_blanks(tttmsg); 
+  else tmsg=skip_blanks(ttmsg); 
+  if(strncmp(tmsg,"HTTP/1.1",8) && strncmp(tmsg,"HTTP/1.0",8)) /*check protocol and version*/
     goto bad_request;
   tmsg=skip_nblanks(tmsg); /*get host value*/
   tmsg=skip_blanks(tmsg);
