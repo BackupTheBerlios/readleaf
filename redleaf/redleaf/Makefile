@@ -3,7 +3,7 @@
 
 -include config
 
-DESTDIR = /usr/local
+DESTDIR = /home/ARCHIV/redleaf
 ETCDIR = ${DESTDIR}/etc
 SHAREDIR = ${DESTDIR}/share/redleaf
 
@@ -31,6 +31,7 @@ install: redleafd
 	@cp src/redleafd ${DESTDIR}/bin/redleafd
 	@cp example.conf ${ETCDIR}/redleaf/example.conf
 	@cp www-default/index.html ${SHAREDIR}/www/index.html
+	@cp www-default/form.html ${SHAREDIR}/www/form.html
 	@cp www-default/img/redleaflogo.png ${SHAREDIR}/www/img/redleaflogo.png
 	@echo "INS: done"
 
