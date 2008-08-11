@@ -1,14 +1,13 @@
-#ifndef __CONFIG_H__
-#define __CONFIG_H__
 
+/*config for paths*/
 #define PREFIX_PATH  "%DSTDIR"
 #define ETC_PATH     "etc/redleaf/"
 #define SHARE_PATH   "share/redleaf/"
 
+/*versioning stuff*/
 #define VER_MAJOR   %VMJ
 #define VER_MINOR   %VMM
 #define VER_TREE    "%VTR"
 #define VER_SUFFIX  "%VSUF"
 
-#endif
-
+/*other*/

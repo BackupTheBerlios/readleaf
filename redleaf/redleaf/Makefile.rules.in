@@ -1,0 +1,13 @@
+# Destination directory
+DESTDIR = %instdir
+# Features
+MODULAS = %modulas
+DEBUG = %debug
+
+
+# version information
+VER_MAJOR = 0
+VER_MINOR = 2
+VER_TREE = Redleafd
+VER_SUFFIX = alpha
+

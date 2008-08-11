@@ -1,0 +1,282 @@
+#!/bin/sh 
+
+# configure script for redleafd
+# Originally written be tirra <tirra.newly@gmail.com>
+# ReadLeaf development team (c) 2008
+
+help() {
+    echo "Configure script for redleafd"
+    echo "Avialable options:"
+    echo "========================================"
+    echo "General:"
+    echo "--dest-dir=<Destination directory> change destination directory (/usr/local/ by default)"
+    echo "--help print this help messages"
+    echo "Features:"
+    echo "--with-modulas=<yes|no> compile modulas (no by default)"
+    echo "--with-debug=<yes|no> compile with debugging output (no by default)"
+    echo "========================================"
+    echo "Example:"
+    echo "./configure --dest-dir=/usr/ --with-modulas=yes - compile redleafd with modulas and install it to /usr/"
+}
+
+DESTDIR="/usr/local/"
+DEBUG="no"
+MODULAS="no"
+
+# reading parameters
+loop=0
+while [ $# -ne 0 ]; do
+    case $1 in
+	"--help")
+	    help
+	    exit 0
+	    ;;
+	--dest-dir=*)
+	    DESTDIR=`echo $1 | awk -F= {'print $2'}`
+	    ;;
+	--with-modulas=*)
+	    MODULAS=`echo $1 | awk -F= {'print $2'}`
+	    ;;
+	--with-debug=*)
+	    DEBUG=`echo $1 | awk -F= {'print $2'}`
+	    ;;
+    esac
+    shift
+done
+
+if [ $MODULAS != "yes" -a $MODULAS != "no"  ];then
+    echo "Unknown value $MODULAS is given, ignoring."
+    MODULAS="no"
+fi
+
+if [ $DEBUG != "yes" -a $DEBUG != "no"  ];then
+    echo "Unknown value $DEBUG is given, ignoring."
+    DEBUG="no"
+fi
+
+# test some varios things
+printf "Checking for working gcc... "
+printf "int main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    GCC=`which gcc`
+    echo "$GCC"
+else
+    printf "no\n"
+    echo "There are no working gcc on system."
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for stdlib.h... "
+printf "#include <stdlib.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for stdio.h... "
+printf "#include <stdio.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for stdarg.h... "
+printf "#include <stdarg.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for ctype.h... "
+printf "#include <ctype.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for string.h... "
+printf "#include <string.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for unistd.h... "
+printf "#include <unistd.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for errno.h... "
+printf "#include <errno.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for time.h... "
+printf "#include <time.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for fcntl.h... "
+printf "#include <fcntl.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for signal.h... "
+printf "#include <signal.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for netdb.h... "
+printf "#include <netdb.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for system headers... "
+printf "#include <sys/socket.h>\n#include <sys/types.h>\n#include <sys/wait.h>\n#include <sys/mman.h>\n#include <sys/types.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+printf "Checking for netinet/in.h... "
+printf "#include <netinet/in.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+gcc ccheck.c -o ccheck 1>/dev/null 2>&1
+if [ $? = 0 ];then
+    echo "yes"
+else
+    printf "no\n"
+    echo "Aborting."
+    exit 1
+fi
+
+if [ $MODULAS = "yes" ]; then
+    printf "Checking for dynamic modules support... "
+    printf "#include <dlfcn.h>\nint main(int argc,char **argv) { return 0; }\n\n" > ccheck.c
+    gcc ccheck.c -o ccheck -ldl 1>/dev/null 2>&1
+    if [ $? = 0 ];then
+	echo "yes"
+    else
+	printf "no\n"
+	echo "Aborting."
+	exit 1
+    fi
+
+fi
+
+rm -f ccheck.c
+rm -f ccheck
+
+# all is present, ok, let's doing configuration stuff
+
+# Makefile.rules.in
+echo "# This file was automatically created via redleafd configure's script." > Makefile.rules
+echo "# " >> Makefile.rules
+cat Makefile.rules.in >> Makefile.rules
+# DESTDIR
+DESTDIRP=`echo $DESTDIR | sed 's|\/|\\\/|g'`
+sed -i s/%instdir/$DESTDIRP/g Makefile.rules 
+# MODULAS
+sed -i s/%modulas/$MODULAS/g Makefile.rules 
+# DEBUG
+sed -i s/%debug/$DEBUG/g Makefile.rules
+
+# config.h.in
+echo "/* config.h - automatically generated file via " > config.h
+echo " * redleafd configure script on $date" >> config.h
+echo " */" >> config.h
+echo " " >> config.h
+echo "#ifndef __CONFIG_H__" >> config.h
+echo "#define __CONFIG_H__" >> config.h
+cat config.h.in >> config.h
+# destination directory
+sed -i s/%DSTDIR/$DESTDIRP/g config.h 
+# versioning stuff
+VMJ=`cat Makefile.rules | grep VER_MAJOR | awk -F= {'print $2'} | awk {'print $1'}`
+VMM=`cat Makefile.rules | grep VER_MINOR | awk -F= {'print $2'} | awk {'print $1'}`
+VTR=`cat Makefile.rules | grep VER_TREE | awk -F= {'print $2'} | awk {'print $1'}`
+VSUF=`cat Makefile.rules | grep VER_SUFFIX | awk -F= {'print $2'} | awk {'print $1'}`
+sed -i s/%VMJ/$VMJ/g config.h 
+sed -i s/%VMM/$VMM/g config.h 
+sed -i s/%VTR/$VTR/g config.h 
+sed -i s/%VSUF/$VSUF/g config.h 
+# modulas stuff
+if [ $MODULAS = "yes" ]; then
+    echo "#define MODULAS  1" >> config.h
+fi
+# debug stuff
+if [ $DEBUG = "yes" ]; then
+    echo "#define __DEBUG  1" >> config.h
+fi
+
+echo " " >> config.h
+
+echo "#endif" >> config.h
+echo " " >> config.h
+
+echo "Configured with:"
+echo "Destination directory: $DESTDIR"
+echo "Modulas: $MODULAS"
+echo "Debug: $DEBUG"
+

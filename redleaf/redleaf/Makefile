@@ -1,22 +1,38 @@
-# by tirra <tirra.newly@gmail.com> (c) 2007
+# by tirra <tirra.newly@gmail.com> (c) 2007, 2008
 # RedLeaf makefile
 
--include config
- 
+-include Makefile.rules
+-include src/Makefile.inc
+-include src/libdata/Makefile.inc
+-include src/liballoc/Makefile.inc
+ifeq ($(MODULAS),yes)
+-include modulas/Makefile.inc
+endif
+
+REDLEAFDOBJ=$(LIBDATA_OBJS) $(LIBALLOC_OBJS) $(DAEMON_OBJS)
+
+BUILDR=redleafd
+CFLAGS=-g -Wall
+
+ifeq ($(MODULAS),yes)
+#BUILDR+=modules_all
+LLIBS+=-rdynamic -ldl
+endif
+
 ETCDIR = ${DESTDIR}/etc
 SHAREDIR = ${DESTDIR}/share/redleaf
 
+%.o: %.c
+	@echo "[CC] $^"
+	@gcc $(CFLAGS) -Isrc/include/ -c -o $@ $^
+
 all: defaults
 
-defaults: redleafd
+defaults: $(BUILDR)
 
-config.h: config.h.in
-	@echo "CFG: Configuring ..."
-	@./genconfh.sh
-
-redleafd: config.h 
+redleafd: $(REDLEAFDOBJ) config.h
 	@echo "BLD: Compiling redleafd ..."
-	@cd src; make
+	@gcc $(REDLEAFDOBJ) -o src/redleafd $(LLIBS)
 
 install: redleafd
 	@echo "INS: creating directories ..."
@@ -36,6 +52,7 @@ install: redleafd
 
 clean: 
 	@echo "MKF: cleaning ..."
-	@cd src; make clean
-	@rm -f config.h
+	@rm -f src/redleafd
+	@rm -f $(REDLEAFDOBJ)
+
 

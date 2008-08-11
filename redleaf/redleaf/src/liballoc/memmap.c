@@ -62,16 +62,16 @@ void *balloc(size_t size)
     return __mab_alloc(__chead->d,size);
 
   if(!chead) {
-    chead=slab_alloc(sizeof(struct __chunkm_t));
+//    chead=slab_alloc(sizeof(struct __chunkm_t));
     chead->next=NULL;
-    chead->d=slab_alloc(sizeof(struct mem_area_t));
+//    chead->d=slab_alloc(sizeof(struct mem_area_t));
     return __mab_alloc(chead->d,size);
   } else {
   __extend:
-    __chead->next=slab_alloc(sizeof(struct __chunkm_t));
+//    __chead->next=slab_alloc(sizeof(struct __chunkm_t));
     __chead=__chead->next;
     __chead->next=NULL;
-    __chead->d=slab_alloc(sizeof(struct mem_area_t));
+//    __chead->d=slab_alloc(sizeof(struct mem_area_t));
   }
 
   return __mab_alloc(__chead->d,size);
