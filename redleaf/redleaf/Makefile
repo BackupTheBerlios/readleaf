@@ -15,7 +15,7 @@ BUILDR=redleafd
 CFLAGS=-g -Wall
 
 ifeq ($(MODULAS),yes)
-#BUILDR+=modules_all
+BUILDR+=$(MODS)
 LLIBS+=-rdynamic -ldl
 endif
 
