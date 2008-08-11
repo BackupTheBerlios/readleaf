@@ -3,11 +3,17 @@
 
 #CFLAGS+=-shared -nostartfiles
 
-#cgi_modula: 
-#	@echo "MD: cgi_modula.c"
-#	@gcc ${CFLAGS} -I${INCLUDES} -o cgi_modula.so modulas/cgi_modula.c
+MODS=modulas/cgi_modula.so
 
-#modules_clean:
-#	@echo "RM: *.so modulas"
-#	@rm -f *.so
+modulas/cgi_modula.so: 
+	@echo "[MOD] cgi_modula.so"
+	@gcc ${CFLAGS} -shared -nostartfiles -fPIC -I$(INCLUDES) modulas/cgi_modula.c -o modulas/cgi_modula.so
+
+modulas_inst:
+	@echo "[INS] modulas ..."
+	@cp modulas/*.so ${SHAREDIR}/
+
+modulas_rm:
+	@echo "[RM] *.so modulas"
+	@rm -f modulas/*.so
 

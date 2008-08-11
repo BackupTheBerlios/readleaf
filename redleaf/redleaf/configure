@@ -9,7 +9,7 @@ help() {
     echo "Avialable options:"
     echo "========================================"
     echo "General:"
-    echo "--dest-dir=<Destination directory> change destination directory (/usr/local/ by default)"
+    echo "--prefix=<Destination directory> change destination directory (/usr/local/ by default)"
     echo "--help print this help messages"
     echo "Features:"
     echo "--with-modulas=<yes|no> compile modulas (no by default)"
@@ -31,7 +31,7 @@ while [ $# -ne 0 ]; do
 	    help
 	    exit 0
 	    ;;
-	--dest-dir=*)
+	--prefix=*)
 	    DESTDIR=`echo $1 | awk -F= {'print $2'}`
 	    ;;
 	--with-modulas=*)
@@ -275,6 +275,9 @@ echo " " >> config.h
 echo "#endif" >> config.h
 echo " " >> config.h
 
+echo " "
+echo " "
+echo "========================================"
 echo "Configured with:"
 echo "Destination directory: $DESTDIR"
 echo "Modulas: $MODULAS"

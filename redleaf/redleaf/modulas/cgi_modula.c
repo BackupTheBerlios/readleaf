@@ -39,7 +39,7 @@ const modula_info_t cgi_modula_info = {
   .version="0.1beta",
 };
 
-static const int *op_cap_codes = { 
+static const int op_cap_codes[] = { 
   IMPLEMENTED,
   IMPLEMENTED,
   IMPLEMENTED,
