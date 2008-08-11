@@ -75,21 +75,24 @@ static void update_page(struct page_t *page,struct stat ystat);
 static void decode_uri(char *uri);
 static inline char *skip_blanks(char *p);
 static inline char *skip_nblanks(char *p);
+static char *read_get_query(char *p1,char *p2);
 
-static void print_substr(char *p1,char *p2);
+static char *read_get_query(char *p1,char *p2)
+{
+  int len = p2-p1;
+  char *ptr=NULL;
 
-static void print_substr(char *p1,char *p2){
-  if(p2>p1){
-    int len = p2-p1;
-    char *ptr = rl_malloc(sizeof(char)*len+1);
-    if(ptr){
-      memset(ptr,'\0',len+1);
-      strncat(ptr,p1,len);
-      fprintf(stderr,"[D]: %s\n",ptr);
-      rl_free(ptr);
-    }
-  }
-};
+  if(len<1)
+    return NULL;
+  
+  ptr = rl_malloc(sizeof(char)*len+1);
+  
+  memset(ptr,'\0',len+1);
+  strncat(ptr,p1,len);
+  fprintf(stderr,"[D]: %s\n",ptr);
+  
+  return ptr;
+}
 
 #define vstrfil(p,len,tb) p=rl_malloc(len+1); memset(p,'\0',len+1); p=strncat(p,tb,len);
 
@@ -122,12 +125,12 @@ struct http_request *parse_http_request(const char *msg)
   tmsg=skip_nblanks((char *)msg); /* get URI */
   tmsg=skip_blanks(tmsg);
   ttmsg=strchr(tmsg,'?');/*get QUERY_STRING*/
-  if((ttmsg-tmsg)>0){
+  if((ttmsg-tmsg)>0) {
     tttmsg = skip_nblanks(ttmsg+1);
     /* QUERY_STRING */
-    print_substr(ttmsg+1,tttmsg);
+    p->get_query=read_get_query(ttmsg+1,tttmsg);
   }
-  else{
+  else {
     ttmsg=skip_nblanks(tmsg);
   }
   len=(int)(ttmsg-tmsg);

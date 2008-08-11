@@ -93,9 +93,9 @@ static int modula_load_hook(struct variable *vv,char *name)
     rl_free(mod);
     return -1;
   }
-  i=strlen(name)+strlen("register")+2;
+  i=strlen(name)+strlen("_register")+2;
   func_name=rl_malloc(i);
-  snprintf(func_name,i,"%sregister",name);
+  snprintf(func_name,i,"%s_register",name);
   modula_register=dlsym(handle,func_name);
   if((err=dlerror())!=NULL) {
     fprintf(stderr,"dlsym: %s\n",err);

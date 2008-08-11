@@ -97,6 +97,7 @@
 typedef enum {
   GET,
   POST,
+  HEAD,
 } request_t;
 
 typedef enum {
@@ -116,6 +117,7 @@ struct http_request {
   char *accept_charset;
   char *referer;
   char *cookie;
+  char *get_query;
   size_t range;
   int keep_alive;
   connection_t connection_type;

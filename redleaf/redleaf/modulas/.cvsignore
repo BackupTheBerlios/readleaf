@@ -4,4 +4,5 @@
 redleafd
 semantic.cache
 *.tmp
+*.so
 *.a

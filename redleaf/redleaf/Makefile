@@ -2,8 +2,7 @@
 # RedLeaf makefile
 
 -include config
-
-DESTDIR = /home/ARCHIV/redleaf
+ 
 ETCDIR = ${DESTDIR}/etc
 SHAREDIR = ${DESTDIR}/share/redleaf
 
