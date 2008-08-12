@@ -47,21 +47,73 @@ static const int op_cap_codes[] = {
   NOT_IMPLEMENTED,
 };
 
+/*symbols that called by default*/
+void _init(void)
+{
+  fprintf(stdout,"<<MODULA>> %s ver. %s by '%s' initied.\n",cgi_modula_info.name,
+	  cgi_modula_info.version,cgi_modula_info.author);
+
+  return;
+}
+
+void _fini(void)
+{
+  fprintf(stdout,"<<MODULA>> %s shooted out.\n",cgi_modula_info.name);
+
+  return;
+}
+
+/*standart functions*/
+
+/*======general functions======**/
+int cgi_modula_init(modula_t *modula, void *data)
+{
+  if(!modula) {
+    fprintf(stderr,">>MODULA<< %s_init: given pointer is nil.\n",cgi_modula_info.name);
+    return -1;
+  }
+
+  modula->info=cgi_modula_info;
+
+  return 0;
+}
+
+int cgi_modula_shootout(modula_t *modula)
+{
+
+  return 0;
+}
+
+/*session functions*/
+int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
+			    struct http_request *ht_req,void *data)
+{
+
+  return 0;
+}
+
+int cgi_modula_session_close(modula_session_t *session)
+{
+  return 0;
+}
+
+size_t cgi_modula_session_read(modula_session_t *session,void *buf,size_t size)
+{
+  return 0;
+}
+
+size_t cgi_modula_session_write(modula_session_t *session,void *buf,size_t size)
+{
+  return 0;
+}
+
+/*misc functions*/
 inline int cgi_modula_check_capatibilies(int op_code)
 {
   return op_cap_codes[op_code];
 }
 
-int cgi_modula_init()
-{
-}
-
-int cgi_modula_shootout()
-{
-}
-
-
-
+#if 0
 static int _run_script(const char *path,const char *args,char *output,char *errmess) 
 {
   pid_t pid;
@@ -131,4 +183,6 @@ static int _run_script(const char *path,const char *args,char *output,char *errm
   
   return o;
 }
+
+#endif /*0*/
 

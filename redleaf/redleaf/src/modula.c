@@ -70,7 +70,7 @@ static int modula_load_hook(struct variable *vv,char *name)
   char *mod_path=NULL,*reg_mime=NULL,*func_name=NULL;
   const char *err;
   void *handle;
-  int (*modula_register)(modula_t *mod,struct variable *vars);
+  int (*modula_init)(modula_t *mod,void *data);
 
   if(!vv || !name) {
     fprintf(stderr,"Cannot load modula due to possible config errors.\n");
@@ -87,16 +87,16 @@ static int modula_load_hook(struct variable *vv,char *name)
       break;
     i++;   
   }
-  handle=dlopen(mod_path,RTLD_NOW);
+  handle=dlopen(mod_path,RTLD_LAZY);
   if(!handle) {
     perror("dlopen: ");
     rl_free(mod);
     return -1;
   }
-  i=strlen(name)+strlen("_register")+2;
+  i=strlen(name)+strlen("_init")+2;
   func_name=rl_malloc(i);
-  snprintf(func_name,i,"%s_register",name);
-  modula_register=dlsym(handle,func_name);
+  snprintf(func_name,i,"%s_init",name);
+  modula_init=dlsym(handle,func_name);
   if((err=dlerror())!=NULL) {
     fprintf(stderr,"dlsym: %s\n",err);
     rl_free(mod);
@@ -104,7 +104,7 @@ static int modula_load_hook(struct variable *vv,char *name)
     return -1;
   }
 
-  modula_register(mod,vv); /*register it*/
+  modula_init(mod,vv); /*register it*/
   mod->cname=name;
   mod->registered_mime_type=reg_mime;
   _is_modulas++;

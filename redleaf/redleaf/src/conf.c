@@ -82,8 +82,8 @@ int conf_walk_modulas(int (*found_hook)(struct variable *array,char *name))
 {
   int i=0;
 
-  while(i<=total_sections) {
-    if(!strcmp((const char*)local_tree[i].name,"Modula"))
+  while(i<=total_sections-1) {
+    if(!strncmp((const char*)local_tree[i].name,"Modula",__STRLEN("Modula")))
       found_hook(local_tree[i].vv,local_tree[i].argument);
     i++;
   }
@@ -96,7 +96,7 @@ char *get_general_value(const char *name)
   struct syn_tree general;
   int i=0;
 
-  while(i<=total_sections)
+  while(i<=total_sections-1)
     if(!strncmp((const char*)local_tree[i].name,"General",__STRLEN("General"))){
       general=local_tree[i];
       break;

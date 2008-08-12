@@ -5,7 +5,7 @@
 
 MODS=modulas/cgi_modula.so
 
-modulas/cgi_modula.so: 
+modulas/cgi_modula.so:  modulas/cgi_modula.c
 	@echo "[MOD] cgi_modula.so"
 	@gcc ${CFLAGS} -shared -nostartfiles -fPIC -I$(INCLUDES) modulas/cgi_modula.c -o modulas/cgi_modula.so
 

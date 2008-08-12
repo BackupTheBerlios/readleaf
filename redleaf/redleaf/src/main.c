@@ -25,6 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 
+#include "../config.h"
+
 #include <http.h>
 #include <serv.h>
 #include <conf.h>
@@ -32,7 +34,9 @@
 #include <misc.h>
 #include <liballoc/memmap.h>
 
-#include "../config.h"
+#ifdef MODULAS
+#include <modula.h>
+#endif
 
 #define CONF_NAME_  "example.conf"
 
@@ -82,6 +86,9 @@ int main(int argc, char **argv)
   buf=(char*)mmap_file(cnfnm,&size);
   load_configuration(buf,size);
   init_page_t_cache();
+#ifdef MODULAS
+  init_modulas_subsystem();
+#endif
   main_process(argc,argv);
 
   munmap_file((void *)buf,size);
