@@ -70,7 +70,10 @@ static int modula_load_hook(struct variable *vv,char *name)
   char *mod_path=NULL,*reg_mime=NULL,*func_name=NULL;
   const char *err;
   void *handle;
+  /*newly registered functions*/
   int (*modula_init)(modula_t *mod,void *data);
+  int (*modula_shootout)(modula_t *mod);
+  int (*modula_check_capatibilies)(int op_code);
 
   if(!vv || !name) {
     fprintf(stderr,"Cannot load modula due to possible config errors.\n");
@@ -94,10 +97,12 @@ static int modula_load_hook(struct variable *vv,char *name)
     return -1;
   }
   i=strlen(name)+strlen("_init")+2;
-  func_name=rl_malloc(i);
+  func_name=rl_malloc(256);
+  memset(func_name,'\0',256);
   snprintf(func_name,i,"%s_init",name);
   modula_init=dlsym(handle,func_name);
   if((err=dlerror())!=NULL) {
+  _err_close:
     fprintf(stderr,"dlsym: %s\n",err);
     rl_free(mod);
     dlclose(handle);
@@ -107,10 +112,64 @@ static int modula_load_hook(struct variable *vv,char *name)
   modula_init(mod,vv); /*register it*/
   mod->cname=name;
   mod->registered_mime_type=reg_mime;
+  mod->modula_init=modula_init;
+  /*shootout*/
+  memset(func_name,'\0',256);
+  snprintf(func_name,255,"%s_shootout",name);
+  modula_shootout=dlsym(handle,func_name);
+  if((err=dlerror())!=NULL) 
+    goto _err_close;
+  mod->modula_shootout=modula_shootout;
+  /*before full init, we're need to pick up capatibilities*/
+  memset(func_name,'\0',256);
+  snprintf(func_name,255,"%s_check_capatibilies",name);
+  modula_check_capatibilies=dlsym(handle,func_name);
+  if((err=dlerror())!=NULL) 
+    goto _err_close;
+  mod->modula_check_capatibilies=modula_check_capatibilies;
+  /*ok, now attach other funcs(session related)*/
+  for(i=0;i<5;i++) 
+    if(modula_check_capatibilies(i)!=ABSENT) {
+      memset(func_name,'\0',256);
+      switch(i) {
+      case MOD_OPEN:
+	snprintf(func_name,255,"%s_session_open",name);
+	mod->modula_session_open=dlsym(handle,func_name);
+	if((err=dlerror())!=NULL) 
+	  goto _err_close;
+	break;
+      case MOD_CLOSE:
+	snprintf(func_name,255,"%s_session_close",name);
+	mod->modula_session_close=dlsym(handle,func_name);
+	if((err=dlerror())!=NULL) 
+	  goto _err_close;
+	break;
+      case MOD_READ:
+	snprintf(func_name,255,"%s_session_read",name);
+	mod->modula_session_read=dlsym(handle,func_name);
+	if((err=dlerror())!=NULL) 
+	  goto _err_close;
+	break;
+      case MOD_WRITE:
+	snprintf(func_name,255,"%s_session_write",name);
+	mod->modula_session_write=dlsym(handle,func_name);
+	if((err=dlerror())!=NULL) 
+	  goto _err_close;
+	break;
+      case MOD_SEEK:
+	snprintf(func_name,255,"%s_session_seek",name);
+	mod->modula_session_seek=dlsym(handle,func_name);
+	if((err=dlerror())!=NULL) 
+	  goto _err_close;
+	break;
+      }
+    }
+
+  /*insert*/
   _is_modulas++;
   emod=usrtc_node_create((void *)mod); 
   usrtc_node_setdata(emod,(void *)mod);
-  usrtc_insert(modulas,emod,(void *)reg_mime); 
+  usrtc_insert(modulas,emod,(void *)reg_mime);
 
   return 0;
 }

@@ -44,7 +44,7 @@ static const int op_cap_codes[] = {
   IMPLEMENTED,
   IMPLEMENTED,
   IMPLEMENTED,
-  NOT_IMPLEMENTED,
+  ABSENT,
 };
 
 /*symbols that called by default*/
