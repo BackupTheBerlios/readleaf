@@ -26,8 +26,6 @@
 #include <sys/types.h>
 
 #include <http.h>
-#include <serv.h>
-#include <conf.h>
 
 #define IMPLEMENTED      0
 #define ABSENT           1

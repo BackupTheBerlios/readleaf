@@ -25,6 +25,12 @@
 
 #include <http.h>
 
+#include "../../config.h"
+
+#ifdef MODULAS
+#include <modula.h>
+#endif
+
 #define CACHE_TIMEOUT  60
 
 /*page_t abstraction*/
@@ -33,6 +39,13 @@ struct page_t {
   char *head; /*header of the reply*/
   void *body; /*body of the message*/
   char *filename; /*filename, maybe NULL if content of file is cached*/
+
+#ifdef MODULAS
+  /*request is varios for any type of modula*/
+  struct http_request *ht_req;
+  /*attached modula session for this page*/
+  modula_session_t *emod;
+#endif
 
   size_t head_len;
   size_t bodysize; /*length of the body*/
@@ -56,7 +69,7 @@ struct page_t {
 
 /*initial functions for page_t*/
 struct page_t *create_page_t(char *uri,char *head,char *body,char *filename,int op);
-void free_page_t(struct page_t *page);
+void free_page_t(struct page_t *page); /*TODO: free all if modulas!*/
 int normalize_page(struct page_t *page);
 int denormalize_page(struct page_t *page);
 /*cache functions - tree lookup and insert/deletion part*/

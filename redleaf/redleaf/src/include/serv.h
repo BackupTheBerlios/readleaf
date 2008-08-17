@@ -32,6 +32,8 @@
 #include <string.h>
 #include <time.h>
 
+#include "../../config.h"
+
 #include <page.h>
 #include <file.h>
 
@@ -51,6 +53,9 @@ typedef enum {
   SS_HEAD,
   SS_BODY,
   SS_FILE,
+#ifdef MODULAS
+  SS_MODULA,
+#endif
   SS_DONE,
 } hbs_t;
 

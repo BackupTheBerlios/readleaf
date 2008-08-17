@@ -36,11 +36,16 @@
 #include <time.h>
 #include <errno.h>
 
+#include "../config.h"
+
 #include <http.h>
 #include <file.h>
 #include <serv.h>
 #include <misc.h>
 #include <conf.h>
+#ifdef MODULAS
+#include <modula.h>
+#endif
 
 #define PORT             8080  /*port to listen*/
 #define MAX_MSG          4096  /*max message length (from client)*/
@@ -221,7 +226,6 @@ static int _serv_proc(int sock,int max_conn,int id)
 	if(connections[i]->rxstat==ST_NONE)
 	  connections[i]->rxstat=ST_PRCS;
 	read_connection(i); /*try to read in general case*/
-	//unblock_socket(connections[i]->socket);
 
 	if(connections[i]->rxstat==ST_PRCS) /*parse if necessary*/
 	  parse_connection(i); 
@@ -236,7 +240,6 @@ static int _serv_proc(int sock,int max_conn,int id)
 	connections[i]->last_state=current_time;
 	write_connection(i); 
       }
-
 
       /*check the states for close droped connections*/
       if((connections[i]->rxstat==ST_ERROR || 
@@ -265,6 +268,12 @@ static void close_connection(int i)
   connections[i]->data_len=0;
   if(connections[i]->page!=NULL)
     connections[i]->page->ref--;
+#ifdef MODULAS
+  if(connections[i]->page->op==4) {
+    connections[i]->page->emod->modula_session_close(connections[i]->page->emod);
+    free_page_t(connections[i]->page);
+  }
+#endif
   connections[i]->page=NULL;
   connections[i]->data_ptr=connections[i]->data=NULL;
   connections[i]->data_send=NULL;
@@ -301,12 +310,20 @@ static void write_connection(int i)
     connections[i]->hb_switch=SS_BODY;
   } else if(connections[i]->data_len==0 && 
 	    connections[i]->hb_switch!=SS_HEAD) { /*data sent*/
-    if(page->op==2)
+    switch(page->op) {
+    case 2:
       connections[i]->hb_switch=SS_FILE;
-    else {
+      break;
+#ifdef MODULAS
+    case 4:
+      connections[i]->hb_switch=SS_MODULA;
+      break;
+#endif
+    default:
       connections[i]->wxstat=ST_DONE;
       FD_CLR(connections[i]->socket,&fdrdset);
       return;
+      break;
     }
   }
   if(connections[i]->hb_switch==SS_BODY) {
@@ -348,10 +365,44 @@ static void write_connection(int i)
     connections[i]->data_len-=res;
     updoffset_file_session(connections[i]->file,old_off+res);
   }
+#ifdef MODULAS
+  if(connections[i]->hb_switch==SS_MODULA) { /*heh, transfer modula's output*/
+    char rd[16]; char *dta;
+    modula_session_t *ses=connections[i]->page->emod;
+    size_t rres=0; int cc;
+
+    res=ses->modula_session_read(ses,&rd,sizeof(char)*16);
+    if(res>0) {
+      dta=rd;       cc=res;
+      while(cc!=rres) { /*while our 16 bytes will not written try to send it*/
+	rres=write(connections[i]->socket,dta,cc);
+	if(rres<0 && errno!=EPIPE)
+	  return;
+	if(rres<0) {
+	  fprintf(stderr,"Error on writing to the socket.\n");
+	  connections[i]->wxstat=ST_ERROR;
+	  FD_CLR(connections[i]->socket,&fdrdset);
+	  return;
+	}
+	cc-=rres; dta+=rres;
+      }
+    }
+    else {
+      ses->modula_session_close(ses);
+      connections[i]->hb_switch=SS_DONE;
+    }
+    /*rich out, space*/
+  }
+#endif
   if(connections[i]->hb_switch==SS_FILE && connections[i]->data_len==0) 
     connections[i]->hb_switch=SS_DONE;
   if(connections[i]->hb_switch==SS_DONE) { /*uff, all sent*/
-    destroy_file_session(connections[i]->file);
+    if(page->op==2)
+      destroy_file_session(connections[i]->file);
+#ifdef MODULAS
+    //    if(page->op==4)
+    //page->emod->modula_session_close(page->emod);
+#endif
     connections[i]->file=NULL;
     connections[i]->wxstat=ST_DONE;
     FD_CLR(connections[i]->socket,&fdrdset);
@@ -364,6 +415,7 @@ static void write_connection(int i)
 static void parse_connection(int i) /*simply request the page*/
 {
   struct page_t *page;
+
   printf("-----\n%s\n------\n",connections[i]->request);
   connections[i]->page=page_t_generate(connections[i]->request);
   if(connections[i]->page==NULL)
@@ -372,6 +424,11 @@ static void parse_connection(int i) /*simply request the page*/
   page=connections[i]->page;
   if(page->op==2) 
     connections[i]->file=create_file_session(page->filename,4096);
+#ifdef MODULAS
+  if(page->op==4 && !page->emod)
+    fprintf(stderr,"Oops!\n");
+#endif
+
   page->ref++;
 
   connections[i]->rxstat=ST_DONE;

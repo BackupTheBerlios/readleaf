@@ -40,6 +40,12 @@
 #include <ctype.h>
 #include <conf.h>
 
+#include "../config.h"
+
+#ifdef MODULAS
+#include <modula.h>
+#endif
+
 #define _DEBUG_  1
 
 /*page macros*/
@@ -200,6 +206,10 @@ struct page_t *page_t_generate(const char *request)
   char *filename=NULL,*tfn=NULL;
   char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
   int yys=0;
+#ifdef MODULAS
+  modula_t *mmod=NULL;
+  modula_session_t *emod;
+#endif
 
   if(ht_req->op_code==BAD_REQUEST) {
     if(!bad_request_page)
@@ -209,6 +219,49 @@ struct page_t *page_t_generate(const char *request)
   }
   req=ht_req->uri;
   decode_uri(req);
+#ifdef MODULAS
+  if((mmod=modula_lookup(mime_type(req)))!=NULL) { /*modula need to be processed*/
+    emod=rl_malloc(sizeof(modula_session_t));
+    if(mmod->modula_check_capatibilies(MOD_OPEN)!=ABSENT) {
+      char *head=rl_malloc(128);
+      char *date=get_rfc1123date(time(NULL));
+      char *real_path=NULL;
+      int ost=0;
+
+      /*find real_path*/
+      yys=sizeof(char)*(strlen(req)+strlen("/")+strlen(root_dir)+2);
+      real_path=rl_malloc(yys);
+      if(strcmp(req,"/")) {
+	req+=sizeof(char);
+	snprintf(real_path,yys,"%s%s",root_dir,req); req-=sizeof(char);
+      } else tfn=strdup(root_dir);
+      ht_req->real_path=real_path;
+      ost=mmod->modula_session_open(mmod,emod,ht_req,NULL);
+      if(ost==-1) {
+	free_http_request(ht_req);
+	rl_free(date);
+	goto _err_moda;
+      }
+      /*let's generate default header*/
+      snprintf(head,127,"HTTP/1.1 200 OK\nDate: %s\nServer: Redleaf\n",date);
+      rl_free(date);
+      page=create_page_t(req,head,NULL,real_path,OK);
+      page->op=4; /*ahha, it's a modula*/
+      page->emod=emod;
+      page->bodysize=0;
+      page->head_len=strlen(head);
+      //normalize_page(page);
+      return page;
+    } else {
+    _err_moda:
+      rl_free(emod);
+      gen_error_page(page,INTERNAL_SERVER_ERROR);
+      normalize_page(page);
+      goto return_and_exit;
+    }
+
+  }
+#endif
 
   page=lookup_cache(req);
   if(page) { /*located in cache*/
@@ -371,6 +424,10 @@ void free_http_request(struct http_request *p)
   if(p->accept_charset) rl_free(p->accept_charset);
   if(p->referer) rl_free(p->referer);
   if(p->cookie) rl_free(p->cookie);
+  if(p->get_query) rl_free(p->get_query);
+#ifdef MODULAS
+  if(p->real_path) rl_free(p->real_path);
+#endif
   rl_free(p);
 
   return;
@@ -603,7 +660,10 @@ static void init_http_request(struct http_request *p)
     return;
 
   p->uri=p->host=p->user_agent=p->accept=p->accept_language=p->accept_encoding=NULL;
-  p->accept_charset=p->referer=NULL;
+  p->cookie=p->accept_charset=p->referer=p->get_query=NULL;
+#ifdef MODULAS
+  p->real_path=NULL;
+#endif
   p->op_code = OK;
   p->range=0;
 

@@ -25,6 +25,8 @@
 #ifndef __HTTP_H__
 #define __HTTP_H__
 
+#include "../../config.h"
+
 /*HTTP errors*/
 /*informational 1xx*/
 #define CONTINUE             100
@@ -122,6 +124,9 @@ struct http_request {
   int keep_alive;
   connection_t connection_type;
   int op_code; /*parse error if exist*/
+#ifdef MODULAS
+  char *real_path;
+#endif
 };
 
 struct http_response {

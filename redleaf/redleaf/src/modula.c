@@ -1,5 +1,5 @@
 /*
- * RedLeaf configuration manager 
+ * redleafd: modulas init subsystem 
  *
  * Copyright (C) 2008 RedLeaf devteam org.
  *
@@ -128,6 +128,9 @@ static int modula_load_hook(struct variable *vv,char *name)
     goto _err_close;
   mod->modula_check_capatibilies=modula_check_capatibilies;
   /*ok, now attach other funcs(session related)*/
+  mod->modula_session_open=NULL;mod->modula_session_close=NULL;
+  mod->modula_session_read=NULL;mod->modula_session_write=NULL;
+  mod->modula_session_seek=NULL;
   for(i=0;i<5;i++) 
     if(modula_check_capatibilies(i)!=ABSENT) {
       memset(func_name,'\0',256);

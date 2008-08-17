@@ -29,7 +29,12 @@
 
 #include <conf.h>
 #include <misc.h>
+
+#include "../config.h"
+
+#ifdef MODULAS
 #include <modula.h>
+#endif
 
 /*configuration parser and structures*/
 
