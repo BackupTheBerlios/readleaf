@@ -418,6 +418,16 @@ static void parse_connection(int i) /*simply request the page*/
 
   printf("-----\n%s\n------\n",connections[i]->request);
   connections[i]->page=page_t_generate(connections[i]->request);
+#ifdef _DEBUG_
+  char tnm[50];
+  snprintf(tnm,sizeof[tnm]-1,"http-%d.txt",getpid());
+  fprintf("save http reuest to: %s",tnm);
+  FILE *f=fopen(tnm,"w");
+  if(f){
+	fwrite(connections[i]->request,connections[i]->request_len,1,f);
+	fclose(f);
+  }
+#endif
   if(connections[i]->page==NULL)
     connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
 
