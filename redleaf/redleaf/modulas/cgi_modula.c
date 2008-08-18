@@ -25,6 +25,8 @@
 #include <string.h>
 #include <unistd.h>
 #include <fcntl.h>
+#include <sys/stat.h>
+#include <sys/types.h>
 
 /*redleafd includes*/
 #include <conf.h>
@@ -88,23 +90,137 @@ int cgi_modula_shootout(modula_t *modula)
 int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
 			    struct http_request *ht_req,void *data)
 {
+  struct stat ystat;
+  pid_t pid;
+  int sout[2];
+
+  if(!modula || !session)
+    return -1;
+
+  if(!ht_req) {
+    fprintf(stderr,"<<MODULA>> %s: http request is nil.\n",cgi_modula_info.name);
+    return -1;
+  }
+
+  /*check for real_path*/
+  if(stat(ht_req->real_path,&ystat)<0) {
+    fprintf(stderr,"<<MODULA>> %s: cannot stat `%s'.\n",cgi_modula_info.name,ht_req->real_path);
+    return -1;
+  }
+  if(!(ystat.st_mode | S_IXUSR)) { /*can it be ?*/
+    fprintf(stderr,"<<MODULA>> %s: cannot execute `%s'.\n",cgi_modula_info.name,ht_req->real_path);
+    return -1;
+  } 
+  /*okay let's fill structures*/
+  session->modula_session_close=modula->modula_session_close;
+  session->modula_session_read=modula->modula_session_read;
+  session->modula_session_write=modula->modula_session_write;
+  /*now let's initiate session*/
+  
+  if(pipe(sout)==-1) {
+    fprintf(stderr,"<<MODULA>> %s: error opening pipe for stdout.\n",cgi_modula_info.name);
+    return -1;
+  }
+  pid=fork();
+  if(pid==-1) {
+    fprintf(stderr,"<<MODULA>> %s: error creating fork().\n",cgi_modula_info.name);
+    return -1;
+  }
+  /*what will done child*/
+  if(!pid) {
+    int i,o=0,wdlen,pairs=0;
+    char *d=strrchr(ht_req->real_path,'/'),*wd,*va,*val;
+
+    close(sout[0]); /*stdout*/
+    close(1);
+    i=dup(sout[1]);
+    close(sout[1]);
+
+    /*TODO: now it's a moment of truth - set environment*/
+    /*set working directory*/
+    wdlen=d-ht_req->real_path;
+    wd=rl_malloc(wdlen+1);
+    memset(wd,'\0',wdlen+1);
+    strncat(wd,ht_req->real_path,wdlen);
+    chdir(wd);     rl_free(wd);
+
+    /*ok,now we will parse other env*/
+    switch(ht_req->method) {
+    case GET: /*GET method support*/
+      if(ht_req->get_query) {
+	setenv("GET",(const char*)ht_req->get_query,1);
+	wd=ht_req->get_query;
+	while(wd) {
+	  if(*wd=='=')	    pairs++;
+	  wd+=sizeof(char);
+	}
+	if(pairs) {
+	  wd=ht_req->get_query;
+	  while(pairs) {
+	    d=strchr(wd,'='); /*variable name*/
+	    wdlen=d-wd;
+	    va=rl_malloc(wdlen+1);
+	    memset(va,'\0',wdlen+1);
+	    strncat(va,wd,wdlen);
+	    wd=d+sizeof(char); /*variable value*/
+	    if(*wd=='\0')
+	      break;
+	    d=strchr(wd,'&');
+	    wdlen=d-wd;
+	    val=rl_malloc(wdlen+1);
+	    strncat(val,wd,wdlen);
+	    /*setenv*/
+	    setenv((const char*)va,(const char *)val,1);
+	    rl_free(va);rl_free(val);
+	    /*seek*/
+	    wd=d+sizeof(char);
+	    pairs--;
+	  }
+	}
+      }
+      break;
+    case HEAD:
+      break;
+    case POST:
+      break;
+    }
+
+    if((o=execl(ht_req->real_path,NULL,NULL))==-1)
+      perror("execl");
+  } else {
+    close(sout[1]);
+    /*set descriptor*/
+    session->pipe_rd=sout[0];
+  }
 
   return 0;
 }
 
 int cgi_modula_session_close(modula_session_t *session)
 {
+  if(!session)
+    return -1;
+
+  fprintf(stderr,"<<MODULA>> DD: closing session.\n");
+  close(session->pipe_rd);
+
   return 0;
 }
 
 size_t cgi_modula_session_read(modula_session_t *session,void *buf,size_t size)
 {
-  return 0;
+  if(!session)
+    return -1;
+
+  return read(session->pipe_rd,buf,size);
 }
 
 size_t cgi_modula_session_write(modula_session_t *session,void *buf,size_t size)
 {
-  return 0;
+  if(!session)
+    return -1;
+
+  return write(session->pipe_rd,buf,size);
 }
 
 /*misc functions*/
@@ -113,76 +229,4 @@ inline int cgi_modula_check_capatibilies(int op_code)
   return op_cap_codes[op_code];
 }
 
-#if 0
-static int _run_script(const char *path,const char *args,char *output,char *errmess) 
-{
-  pid_t pid;
-  int o=0;
-  int sout[2],serr[2];
-  int fo,fe;
-  
-  if(pipe(sout)==-1) {
-    fprintf(stderr,"Error opening pipe for out.\n");
-    return -1;
-  }
-  if(pipe(serr)==-1) {
-    fprintf(stderr,"Error opening pipe for err.\n");
-    return -1;
-  }
-  pid=fork();
-  if(pid==-1) {
-    fprintf(stderr,"Error creating fork()\n");
-    return -1;
-  }
-
-  if(pid==0) { /*child*/
-    int i,u;
-    close(sout[0]); /*stdout*/
-    close(1);
-    i=dup(sout[1]);
-    close(sout[1]);
-
-    close(serr[0]); /*stderr*/
-    close(2);
-    u=dup(serr[1]);
-    close(serr[1]);
-
-    if((o=execl(path,(const char*)args,NULL))==-1)
-      perror("execl");
-
-  } else { /*parent*/
-    char t,y,*oo,*ee;
-    int ii=0;
-    if(!output || !errmess) {
-      fprintf(stderr,"Error allocating memory.\n");
-      return -1;
-    }
-    oo=output;
-    ee=errmess;
-
-    close(sout[1]);
-    close(serr[1]);
-    while(read(sout[0],&t,1)>0) {
-      *oo=t; *oo++; ii++;
-      if(ii/1024>=1 && ii%1024==0) {
-	output=realloc(output,1024*(ii/1024));
-      }
-    }
-    ii=0;
-    while(read(serr[0],&y,1)>0) {
-      *ee=y; *ee++;
-      if(ii/1024>=1 && ii%1024==0) {
-	errmess=realloc(output,1024*(ii/1024));
-      }
-    }
-    *ee='\0';*oo='\0';
-    close(sout[0]);
-    close(serr[0]);
-
-  }
-  
-  return o;
-}
-
-#endif /*0*/
 
