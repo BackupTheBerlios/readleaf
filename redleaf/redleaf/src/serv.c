@@ -388,7 +388,9 @@ static void write_connection(int i)
       }
     }
     else {
+#if 0
       ses->modula_session_close(ses);
+#endif
       connections[i]->hb_switch=SS_DONE;
     }
     /*rich out, space*/
