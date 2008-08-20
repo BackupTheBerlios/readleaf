@@ -4,3 +4,4 @@
 redleafd
 semantic.cache
 *.tmp
+.emacs.desktop

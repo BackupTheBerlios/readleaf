@@ -6,3 +6,4 @@ semantic.cache
 *.tmp
 *.so
 *.a
+.emacs.desktop
