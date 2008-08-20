@@ -16,7 +16,7 @@ help() {
     echo "--with-debug=<yes|no> compile with debugging output (no by default)"
     echo "========================================"
     echo "Example:"
-    echo "./configure --dest-dir=/usr/ --with-modulas=yes - compile redleafd with modulas and install it to /usr/"
+    echo "./configure --prefix=/usr/ --with-modulas=yes - compile redleafd with modulas and install it to /usr/"
 }
 
 DESTDIR="/usr/local/"
@@ -242,9 +242,11 @@ sed -i s/%modulas/$MODULAS/g Makefile.rules
 # DEBUG
 sed -i s/%debug/$DEBUG/g Makefile.rules
 
+DATE=`date`
+
 # config.h.in
 echo "/* config.h - automatically generated file via " > config.h
-echo " * redleafd configure script on $date" >> config.h
+echo " * redleafd configure script on $DATE" >> config.h
 echo " */" >> config.h
 echo " " >> config.h
 echo "#ifndef __CONFIG_H__" >> config.h
