@@ -203,7 +203,6 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     close(sout[1]);
     /*set descriptor*/
     session->pipe_rd=sout[0];
-    session->pid=pid;
   }
 
   return 0;
