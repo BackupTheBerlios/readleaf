@@ -27,6 +27,8 @@
 #include <fcntl.h>
 #include <sys/stat.h>
 #include <sys/types.h>
+#include <sys/wait.h>
+#include <signal.h>
 
 /*redleafd includes*/
 #include <conf.h>
@@ -93,6 +95,7 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
   struct stat ystat;
   pid_t pid;
   int sout[2];
+  int cstate;
 
   if(!modula || !session)
     return -1;
@@ -147,18 +150,21 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     /*ok,now we will parse other env*/
     switch(ht_req->method) {
     case GET: /*GET method support*/
+      setenv("METHOD","GET",1);
       if(ht_req->get_query) {
 	setenv("GET",(const char*)ht_req->get_query,1);
 	wd=ht_req->get_query;
-	while(wd) {
+	while(*wd!='\0') {
 	  if(*wd=='=')	    pairs++;
 	  wd+=sizeof(char);
 	}
 	if(pairs) {
 	  wd=ht_req->get_query;
-	  while(pairs) {
+	  while(pairs!=0) {
+	    if(*wd=='\0') break;
 	    d=strchr(wd,'='); /*variable name*/
-	    wdlen=d-wd;
+	    if(!d)	      d=strchr(wd,'\0');
+	    wdlen=(int)(d-wd);
 	    va=rl_malloc(wdlen+1);
 	    memset(va,'\0',wdlen+1);
 	    strncat(va,wd,wdlen);
@@ -166,8 +172,10 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
 	    if(*wd=='\0')
 	      break;
 	    d=strchr(wd,'&');
-	    wdlen=d-wd;
+	    if(!d)	      d=strchr(wd,'\0');
+	    wdlen=(int)(d-wd);
 	    val=rl_malloc(wdlen+1);
+	    memset(val,'\0',wdlen+1);
 	    strncat(val,wd,wdlen);
 	    /*setenv*/
 	    setenv((const char*)va,(const char *)val,1);
@@ -185,12 +193,17 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
       break;
     }
 
-    if((o=execl(ht_req->real_path,NULL,NULL))==-1)
-      perror("execl");
+    if((o=execl(ht_req->real_path,ht_req->real_path,NULL))==-1) {
+      perror("execl:");
+      exit(3);
+    }
+    return 0;
   } else {
+    waitpid(pid,&cstate,0);
     close(sout[1]);
     /*set descriptor*/
     session->pipe_rd=sout[0];
+    session->pid=pid;
   }
 
   return 0;
@@ -201,8 +214,12 @@ int cgi_modula_session_close(modula_session_t *session)
   if(!session)
     return -1;
 
-  fprintf(stderr,"<<MODULA>> DD: closing session.\n");
-  close(session->pipe_rd);
+  fprintf(stderr,"<<MODULA>> DD: closing session(%d).\n",session->pipe_rd);
+  if(close(session->pipe_rd)==-1) {
+    fprintf(stderr,"<<MODULA>> DD: closing session error (%d is invalid).\n",session->pipe_rd);
+    perror("close:");
+    return -1;
+  }
 
   return 0;
 }
