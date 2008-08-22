@@ -422,8 +422,8 @@ static void parse_connection(int i) /*simply request the page*/
   connections[i]->page=page_t_generate(connections[i]->request);
 #ifdef _DEBUG_
   char tnm[50];
-  snprintf(tnm,sizeof[tnm]-1,"http-%d.txt",getpid());
-  fprintf("save http reuest to: %s",tnm);
+  snprintf(tnm,sizeof(tnm)-1,"http-%d.txt",getpid());
+  printf("save http reuest to: %s",tnm);
   FILE *f=fopen(tnm,"w");
   if(f){
 	fwrite(connections[i]->request,connections[i]->request_len,1,f);
