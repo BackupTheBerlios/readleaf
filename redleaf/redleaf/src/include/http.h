@@ -97,6 +97,7 @@
 
 /*TODO: add unsupported request*/
 typedef enum {
+  NOT, /* Not Implemented */
   GET,
   POST,
   HEAD,
@@ -120,6 +121,8 @@ struct http_request {
   char *referer;
   char *cookie;
   char *get_query;
+  char *content_type;
+  unsigned long content_length;
   size_t range;
   int keep_alive;
   connection_t connection_type;
