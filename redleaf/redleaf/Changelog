@@ -1,3 +1,12 @@
+- version 0.2alpha:
+ * Full GET method support
+ * Full POST method support
+ * Modulas subsystem
+ * Improved build system
+ * CGI support (cgi_modula.so)
+ * many fixes with parsing
+ * Misc debugging
+ * C strings streams added
 - version 0.1:
  * partial content
  * fixed bugs
