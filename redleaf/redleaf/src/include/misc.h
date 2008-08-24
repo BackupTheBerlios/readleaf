@@ -32,8 +32,10 @@ char *get_rfc1123date(time_t t);
 int norm_slash_uri(char *uri);
 
 /*wrappers for memory related functions*/
-void *rl_malloc(size_t size);
-void *rl_realloc(void *p,size_t size);
+void *__rl_malloc(char *file,int line,char *function,size_t size);
+#define rl_malloc(p)  __rl_malloc(__FILE__,__LINE__,(char *)__FUNCTION__,p)
+void *__rl_realloc(char *file,int line,char *function,void *p,size_t size);
+#define rl_realloc(p,s)  __rl_realloc(__FILE__,__LINE__,(char *)__FUNCTION__,p,s)
 void *rl_calloc(size_t n,size_t size);
 void *__rl_free(char *file,int line,char *function,void *p);
 #define rl_free(p)  __rl_free(__FILE__,__LINE__,(char *)__FUNCTION__,p)

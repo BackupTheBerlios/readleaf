@@ -68,7 +68,6 @@ Content-Type: text/html; charset=utf-8\n\n"
 struct page_t *bad_request_page = NULL;
 
 /*functions prototypes*/
-void free_http_reply(struct http_reply *reply);
 
 /*local functions prototypes*/
 static void init_http_request(struct http_request *p);
@@ -82,6 +81,7 @@ static void decode_uri(char *uri);
 static inline char *skip_blanks(char *p);
 static inline char *skip_nblanks(char *p);
 static char *read_get_query(char *p1,char *p2);
+static void __http_request_clear(struct http_request *p);
 
 static char *read_get_query(char *p1,char *p2)
 {
@@ -95,21 +95,21 @@ static char *read_get_query(char *p1,char *p2)
   
   memset(ptr,'\0',len+1);
   strncat(ptr,p1,len);
-  fprintf(stderr,"[D]: %s\n",ptr);
   
   return ptr;
 }
 
 #define vstrfil(p,len,tb) p=rl_malloc(len+1); memset(p,'\0',len+1); p=strncat(p,tb,len);
 
-struct http_request *parse_http_request(const char *msg)
+struct http_request *parse_http_request(struct http_request *p,const char *msg)
 {
-  struct http_request *p=NULL;
+  /*  struct http_request *p=NULL;*/
   char *tmsg=(char *)msg,*ttmsg=NULL,*tttmsg=NULL;
   char *prst,*pprst;
   int len=0,chs=0;
+  char tsb;
 
-  p=rl_malloc(sizeof(struct http_request));
+  /*  p=rl_malloc(sizeof(struct http_request));*/
   init_http_request(p);
 
   if(!msg || strlen(msg)<6) {
@@ -130,22 +130,19 @@ struct http_request *parse_http_request(const char *msg)
 
   tmsg=skip_nblanks((char *)msg); /* get URI */
   tmsg=skip_blanks(tmsg);
-  ttmsg=strchr(tmsg,'?');/*get QUERY_STRING*/
-  if((ttmsg-tmsg)>0) {
-    tttmsg = skip_nblanks(ttmsg+1);
-    /* QUERY_STRING */
-    p->get_query=read_get_query(ttmsg+1,tttmsg);
-  }
-  else {
-    ttmsg=skip_nblanks(tmsg);
-  }
-  len=(int)(ttmsg-tmsg);
-  p->uri=rl_malloc(len+1);
-  memset(p->uri,'\0',len+1);
-  p->uri=strncat(p->uri,tmsg,len);
+  ttmsg=skip_nblanks(tmsg);
+  tsb=*ttmsg;*ttmsg='\0';
+  tttmsg=strchr(tmsg,'?');
+  if(tttmsg!=NULL) { /*get GET method query*/
+    p->get_query=read_get_query(tttmsg+1,ttmsg);
+    p->uri=read_get_query(tmsg,tttmsg);
+  } else
+    p->uri=read_get_query(tmsg,ttmsg);
+  *ttmsg=tsb;
+
+  tmsg=skip_nblanks(tmsg);
+  tmsg=skip_blanks(tmsg);
   
-  if(tttmsg)tmsg=skip_blanks(tttmsg); 
-  else tmsg=skip_blanks(ttmsg); 
   if(strncmp(tmsg,"HTTP/1.1",8) && strncmp(tmsg,"HTTP/1.0",8)) /*check protocol and version*/
     goto bad_request;
   tmsg=skip_nblanks(tmsg); /*get host value*/
@@ -197,11 +194,89 @@ struct http_request *parse_http_request(const char *msg)
   return p;
 }
 
-struct page_t *page_t_generate(const char *request)
+/*sessions*/
+http_session_t *http_session_open(http_session_t *http,in_addr_t addr)
+{
+
+  http->ht_req.cl_addr=addr; /*first we know client's address*/
+  http->stream=scstr_new(4096);
+  http->state=HS_INIT;
+
+  return http;
+}
+
+http_control_t http_session_process(http_session_t *http,void *buf,size_t len)
+{
+  int __len;
+  char *screq,*uu;
+
+  switch(http->state) {
+  case HS_INIT:
+    if(!len) { /*oops, request is not correct*/
+      http->ht_req.op_code=BAD_REQUEST;
+      return CX_PAGE_READY;
+    }
+    http->stream=scstr_addn(http->stream,buf,len);
+    __len=scstr_len(http->stream);
+    screq=scstr_get(http->stream);
+    uu=strstr(screq,"\r\n\r\n");
+    if(uu && __len<HTTP_HEAD_LEN_MAX)      {
+      http->state=HS_HEAD;
+      goto __hs_head;
+    }
+    else if(__len>HTTP_HEAD_LEN_MAX) {
+      http->state=HS_DONE;
+      http->ht_req.op_code=BAD_REQUEST;
+      return CX_PAGE_READY;
+    }
+    break;
+  case HS_HEAD:
+  __hs_head:
+    __len=scstr_len(http->stream);
+    screq=scstr_get(http->stream);
+    parse_http_request(&http->ht_req,(const char*)screq);
+    if(http->ht_req.method==POST) {
+      http->state=HS_BODY;
+      return CX_PAGE_READ_BODY;
+    } else {
+      http->state=HS_DONE;
+      return CX_PAGE_READY;
+    }
+    break;
+  case HS_BODY:
+    /*gen page*/
+    return CX_NO;
+    break;
+  case HS_DONE:
+    return CX_PAGE_READY;
+    break;
+  }
+
+  return CX_NO;
+}
+
+struct page_t *http_session_gen_page(http_session_t *sess)
+{
+  return page_t_generate(&sess->ht_req);
+}
+
+http_session_t *http_session_close(http_session_t *ss)
+{
+
+  scstr_remove(ss->stream);
+  ss->state=HS_DONE;
+  __http_request_clear(&ss->ht_req);
+
+  return ss;
+}
+
+struct page_t *page_t_generate(struct http_request *ht_req)
 {
   char *req;
   struct page_t *page=NULL;
+#if 0
   struct http_request *ht_req=parse_http_request(request);
+#endif
   struct stat ystat;
   char *filename=NULL,*tfn=NULL;
   char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
@@ -238,7 +313,6 @@ struct page_t *page_t_generate(const char *request)
       ht_req->real_path=real_path;
       ost=mmod->modula_session_open(mmod,emod,ht_req,NULL);
       if(ost==-1) {
-	free_http_request(ht_req);
 	rl_free(date);
 	goto _err_moda;
       }
@@ -250,8 +324,7 @@ struct page_t *page_t_generate(const char *request)
       page->emod=emod;
       page->bodysize=0;
       page->head_len=strlen(head);
-      //normalize_page(page);
-      return page;
+      goto return_and_exit;
     } else {
     _err_moda:
       rl_free(emod);
@@ -406,7 +479,9 @@ struct page_t *page_t_generate(const char *request)
   }
 
  return_and_exit:
+#if 0
   free_http_request(ht_req);
+#endif
   return page;
 }
 
@@ -424,11 +499,38 @@ void free_http_request(struct http_request *p)
   if(p->accept_charset) rl_free(p->accept_charset);
   if(p->referer) rl_free(p->referer);
   if(p->cookie) rl_free(p->cookie);
-  if(p->get_query) rl_free(p->get_query);
+  if(p->get_query)     rl_free(p->get_query);
+  p->get_query=NULL;
 #ifdef MODULAS
   if(p->real_path) rl_free(p->real_path);
 #endif
   rl_free(p);
+
+  return;
+}
+
+static void __http_request_clear(struct http_request *p)
+{
+  if(!p)
+    return;
+
+  if(p->uri)    rl_free(p->uri);
+  if(p->host)    rl_free(p->host);
+  if(p->user_agent) rl_free(p->user_agent);
+  if(p->accept) rl_free(p->accept);
+  if(p->accept_language) rl_free(p->accept_language);
+  if(p->accept_encoding) rl_free(p->accept_encoding);
+  if(p->accept_charset) rl_free(p->accept_charset);
+  if(p->referer) rl_free(p->referer);
+  if(p->cookie) rl_free(p->cookie);
+  if(p->get_query)     rl_free(p->get_query);
+  p->get_query=NULL;
+  p->uri=p->host=p->user_agent=p->accept=p->accept_language=NULL;
+  p->accept_encoding=p->accept_charset=p->referer=p->cookie=NULL;
+#ifdef MODULAS
+  if(p->real_path) rl_free(p->real_path);
+#endif
+  p->real_path=NULL;
 
   return;
 }

@@ -90,6 +90,8 @@ struct connection_t {
   struct page_t *page;
   /*file session if exist*/
   struct file_session_t *file;
+  /*http session*/
+  http_session_t *http;
 };
 
 /*global functions*/

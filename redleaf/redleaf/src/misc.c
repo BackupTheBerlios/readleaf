@@ -93,12 +93,13 @@ int norm_slash_uri(char *uri)
   return 0;
 }
 
-void *rl_malloc(size_t size)
+void *__rl_malloc(char *file,int line,char *function,size_t size)
 {
   void *v=malloc(size);
 
   if(!v) {
     fprintf(stderr,"Error allocating memory for %d bytes.\n",(int)size);
+    fprintf(stderr,"At `%s:%d' via '%s'\n",file,line,function);
     exit(3);
     return NULL;
   }
@@ -106,12 +107,13 @@ void *rl_malloc(size_t size)
   return v;
 }
 
-void *rl_realloc(void *p,size_t size)
+void *__rl_realloc(char *file,int line,char *function,void *p,size_t size)
 {
   p=realloc(p,size);
 
   if(!p) {
     fprintf(stderr,"Error re-allocating memory with new size %d bytes.\n",(int)size);
+    fprintf(stderr,"At `%s:%d' via '%s'\n",file,line,function);
     exit(3);
     return NULL;
   }

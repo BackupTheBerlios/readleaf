@@ -223,12 +223,13 @@ static int _serv_proc(int sock,int max_conn,int id)
 
       if(FD_ISSET(connections[i]->socket,&trdset)) { /*selected to read*/
 	connections[i]->last_state=current_time;
-	if(connections[i]->rxstat==ST_NONE)
-	  connections[i]->rxstat=ST_PRCS;
+	if(connections[i]->rxstat==ST_NONE)	  connections[i]->rxstat=ST_PRCS;
 	read_connection(i); /*try to read in general case*/
 
+#if 0
 	if(connections[i]->rxstat==ST_PRCS) /*parse if necessary*/
 	  parse_connection(i); 
+#endif
       }
 
       if(connections[i]->rxstat==ST_PRCS && /*catch timeout while read*/
@@ -271,7 +272,7 @@ static void close_connection(int i)
 #ifdef MODULAS
   if(connections[i]->page->op==4) {
     connections[i]->page->emod->modula_session_close(connections[i]->page->emod);
-    free_page_t(connections[i]->page);
+    //free_page_t(connections[i]->page);
   }
 #endif
   connections[i]->page=NULL;
@@ -281,6 +282,7 @@ static void close_connection(int i)
     destroy_file_session(connections[i]->file);
   connections[i]->file=NULL;
   connections[i]->request_len=0;
+  connections[i]->http=http_session_close(connections[i]->http);
 
   return;
 }
@@ -409,11 +411,10 @@ static void write_connection(int i)
     connections[i]->wxstat=ST_DONE;
     FD_CLR(connections[i]->socket,&fdrdset);
   }
-  
-  
+    
   return;
 }
-
+#if 0
 static void parse_connection(int i) /*simply request the page*/
 {
   struct page_t *page;
@@ -448,7 +449,7 @@ static void parse_connection(int i) /*simply request the page*/
 
   return;
 }
-
+#endif
 #ifdef _DEBUG_
 
 static void dbg_print_connection_info(int i)
@@ -519,27 +520,48 @@ static void dbg_print_connection_info(int i)
 static void read_connection(int i)
 {
   int rd;
+  char buf[32];
 
   if(connections[i]->rxstat==ST_ERROR || connections[i]->rxstat==ST_TIMEOUT ||
      connections[i]->rxstat==ST_DONE)
     return;
 
-  rd=read(connections[i]->socket,connections[i]->req_ptr,
-	  MAX_MSG-connections[i]->request_len);
+  memset(buf,'\0',32);
+  rd=read(connections[i]->socket,buf,31);
 
-  if(rd<=0) {
-    if(rd<0) {
-      if(errno==EWOULDBLOCK)
-	return;
-      connections[i]->rxstat=connections[i]->wxstat=ST_ERROR; /*error on read*/
-      FD_CLR(connections[i]->socket,&fdrdset);
-      return;
-    }
+  if(rd<0 && errno==EWOULDBLOCK)    return;
+  if(rd<0) {
+    connections[i]->rxstat=connections[i]->wxstat=ST_ERROR; /*error on read*/
+    FD_CLR(connections[i]->socket,&fdrdset);
+    return;
+  }
+
+  switch(http_session_process(connections[i]->http,buf,rd)) {
+  case CX_NO:
+    return;
+    break;
+  case CX_PAGE_READY:
     connections[i]->rxstat=ST_DONE;
     FD_CLR(connections[i]->socket,&fdrdset);
-  } else { /*actual read*/
-    connections[i]->req_ptr+=rd;
-    connections[i]->request_len+=rd;
+    connections[i]->page=http_session_gen_page(connections[i]->http);
+    //    fprintf(stderr,"page->filename=%s\n",connections[i]->page->filename);
+    break;
+  case CX_PAGE_READ_BODY:
+    /*read to modula*/
+    if(!connections[i]->page) /*first time to generate*/
+      connections[i]->page=http_session_gen_page(connections[i]->http);
+#ifdef MODULAS
+    if(!rd) {
+      connections[i]->rxstat=ST_DONE;
+      FD_CLR(connections[i]->socket,&fdrdset);
+    }
+    /*TODO: read to modula if possible*/
+#else
+    connections[i]->rxstat=ST_DONE;
+    FD_CLR(connections[i]->socket,&fdrdset);
+#endif
+
+    break;
   }
 
 #ifdef _DEBUG_
@@ -600,7 +622,9 @@ static int new_connection(void)
 		      (char *) &o, sizeof(int))==-1)
 	  fprintf(stderr,"setsockopt() failed.\n");
 	FD_SET(connections[i]->socket,&fdrdset); /*connected*/
-	//connections[i]->addr=rin.in_addr;
+	connections[i]->addr=rin.sin_addr;
+	connections[i]->http=rl_malloc(sizeof(http_session_t));
+	connections[i]->http=http_session_open(connections[i]->http,connections[i]->addr.s_addr);
       }
     }
   }

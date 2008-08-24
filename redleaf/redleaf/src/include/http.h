@@ -25,7 +25,11 @@
 #ifndef __HTTP_H__
 #define __HTTP_H__
 
+#include <netinet/in.h>
+
 #include "../../config.h"
+
+#include <liballoc/scstr.h>
 
 /*HTTP errors*/
 /*informational 1xx*/
@@ -94,10 +98,11 @@
 
 /*date format*/
 #define RFC1123FMT  "%a, %d %b %Y %H:%M:%S GMT"
+/*some parsing related things*/
+#define HTTP_HEAD_LEN_MAX  3993 /*just no more than 4k that fits to page size*/
 
 /*TODO: add unsupported request*/
 typedef enum {
-  NOT, /* Not Implemented */
   GET,
   POST,
   HEAD,
@@ -107,6 +112,19 @@ typedef enum {
   CLOSED,
   KEEP_ALIVE,
 } connection_t;
+
+typedef enum {
+  HS_INIT,
+  HS_HEAD,
+  HS_BODY,
+  HS_DONE,
+} http_session_state_t;
+
+typedef enum {
+  CX_NO,
+  CX_PAGE_READY,
+  CX_PAGE_READ_BODY,
+} http_control_t;
 
 /*structure used for http request*/
 struct http_request {
@@ -122,7 +140,7 @@ struct http_request {
   char *cookie;
   char *get_query;
   char *content_type;
-  unsigned long content_length;
+  size_t content_length;
   size_t range;
   int keep_alive;
   connection_t connection_type;
@@ -130,29 +148,27 @@ struct http_request {
 #ifdef MODULAS
   char *real_path;
 #endif
+  in_addr_t cl_addr; /*client's address*/
 };
 
-struct http_response {
-  char *response;
-  char *server;
-  char *content_type;
-  unsigned long content_lenght;
-};
+typedef struct __http_session_type {
+  struct http_request ht_req; /*http request*/
+  http_session_state_t state; /*state of parsing*/
+  scstr_t *stream; /*stream of session*/
+} http_session_t;
 
-struct http_reply {
-  char *head;
-  char *fmtdate;
-  char *server;
-  char *content_type;
-  char *connection_type;
-  unsigned long content_length;
-  void *buf; /*contents of the reply*/
-  char *uri;
-};
+/*session related*/
+http_session_t *http_session_open(http_session_t *http,in_addr_t addr);
+http_control_t http_session_process(http_session_t *sess,void *buf,size_t len);
+struct page_t *http_session_gen_page(http_session_t *sess);
+http_session_t *http_session_close(http_session_t *ss);
 
 /*functions*/
-struct http_request *parse_http_request(const char *msg);
+struct http_request *parse_http_request(struct http_request *p,const char *msg);
+#if 0
 struct page_t *page_t_generate(const char *request);
+#endif
+struct page_t *page_t_generate(struct http_request *ht_req);
 void free_http_request(struct http_request *r);
 
 #endif /*__HTTP_H__*/
