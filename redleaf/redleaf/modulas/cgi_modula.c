@@ -94,7 +94,7 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
 {
   struct stat ystat;
   pid_t pid;
-  int sout[2];
+  int sout[2],sin[2];
   int cstate;
 
   if(!modula || !session)
@@ -124,6 +124,11 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     fprintf(stderr,"<<MODULA>> %s: error opening pipe for stdout.\n",cgi_modula_info.name);
     return -1;
   }
+  if(pipe(sin)==-1) {
+    fprintf(stderr,"<<MODULA>> %s: error opening pipe for stdin.\n",cgi_modula_info.name);
+    return -1;
+  }
+
   pid=fork();
   if(pid==-1) {
     fprintf(stderr,"<<MODULA>> %s: error creating fork().\n",cgi_modula_info.name);
@@ -131,7 +136,7 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
   }
   /*what will done child*/
   if(!pid) {
-    int i,o=0,wdlen,pairs=0;
+    int i,ii,o=0,wdlen,pairs=0;
     char *d=strrchr(ht_req->real_path,'/'),*wd,*va,*val;
 
     close(sout[0]); /*stdout*/
@@ -139,13 +144,28 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     i=dup(sout[1]);
     close(sout[1]);
 
-    /*TODO: now it's a moment of truth - set environment*/
+    close(sin[0]); /*stdin*/
+    close(0);
+    ii=dup(sin[1]);
+    close(sin[1]);
+
     /*set working directory*/
     wdlen=d-ht_req->real_path;
     wd=rl_malloc(wdlen+1);
     memset(wd,'\0',wdlen+1);
     strncat(wd,ht_req->real_path,wdlen);
     chdir(wd);     rl_free(wd);
+
+    /*set http defaults variables*/
+    if(ht_req->uri)      setenv("URI",ht_req->uri,1);
+    if(ht_req->host)      setenv("HOST",ht_req->host,1);
+    if(ht_req->user_agent)      setenv("User-Agent",ht_req->host,1);
+    if(ht_req->accept)      setenv("Accept",ht_req->accept,1);
+    if(ht_req->accept_language)      setenv("Accept-Language",ht_req->accept_language,1);
+    if(ht_req->accept_encoding)      setenv("Accept-Encoding",ht_req->accept_encoding,1);
+    if(ht_req->accept_charset)      setenv("Accept-Charset",ht_req->accept_charset,1);
+    if(ht_req->referer)      setenv("Referer",ht_req->referer,1);
+    if(ht_req->cookie)      setenv("Cookie",ht_req->cookie,1);
 
     /*ok,now we will parse other env*/
     switch(ht_req->method) {
@@ -190,6 +210,7 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     case HEAD:
       break;
     case POST:
+      setenv("METHOD","POST",1);
       break;
     }
 
@@ -201,8 +222,11 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
   } else {
     waitpid(pid,&cstate,0);
     close(sout[1]);
-    /*set descriptor*/
-    session->pipe_rd=sout[0];
+    close(sin[1]);
+
+    /*set descriptors*/
+    session->pipe_rd=sout[0]; /*stdout*/
+    session->pipe_wr=sin[0];  /*stdin*/
   }
 
   return 0;
@@ -214,8 +238,14 @@ int cgi_modula_session_close(modula_session_t *session)
     return -1;
 
   fprintf(stderr,"<<MODULA>> DD: closing session(%d).\n",session->pipe_rd);
+
   if(close(session->pipe_rd)==-1) {
-    fprintf(stderr,"<<MODULA>> DD: closing session error (%d is invalid).\n",session->pipe_rd);
+    fprintf(stderr,"<<MODULA>> DD: closing session error (%d is invalid)[stdout].\n",session->pipe_rd);
+    perror("close:");
+    return -1;
+  }
+  if(close(session->pipe_wr)==-1) {
+    fprintf(stderr,"<<MODULA>> DD: closing session error (%d is invalid)[stdin].\n",session->pipe_wr);
     perror("close:");
     return -1;
   }
@@ -236,7 +266,7 @@ size_t cgi_modula_session_write(modula_session_t *session,void *buf,size_t size)
   if(!session)
     return -1;
 
-  return write(session->pipe_rd,buf,size);
+  return write(session->pipe_wr,buf,size);
 }
 
 /*misc functions*/
