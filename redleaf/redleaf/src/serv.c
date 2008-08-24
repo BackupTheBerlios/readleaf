@@ -86,7 +86,6 @@ static void sigpipe_handler(int signal_number);
 static void init_connections(int max);
 static int new_connection(void);
 static void read_connection(int i);
-static void parse_connection(int i);
 static void write_connection(int i);
 static void close_connection(int i);
 static void i_saddr(struct sockaddr_in *v,const char *host,uint16_t port);
@@ -209,7 +208,7 @@ static int _serv_proc(int sock,int max_conn,int id)
       exit(3);
     }
 
-    if(FD_ISSET(sock,&trdset)) {/*try to create new connection*/
+    if(FD_ISSET(sock,&trdset)) { /*try to create new connection*/
       load_chld[id].curr_conn++;
       load_chld[id].total_conn++;
       new_connection();
@@ -225,11 +224,6 @@ static int _serv_proc(int sock,int max_conn,int id)
 	connections[i]->last_state=current_time;
 	if(connections[i]->rxstat==ST_NONE)	  connections[i]->rxstat=ST_PRCS;
 	read_connection(i); /*try to read in general case*/
-
-#if 0
-	if(connections[i]->rxstat==ST_PRCS) /*parse if necessary*/
-	  parse_connection(i); 
-#endif
       }
 
       if(connections[i]->rxstat==ST_PRCS && /*catch timeout while read*/
@@ -414,44 +408,8 @@ static void write_connection(int i)
     
   return;
 }
-#if 0
-static void parse_connection(int i) /*simply request the page*/
-{
-  struct page_t *page;
 
-  printf("-----\n%s\n------\n",connections[i]->request);
-  connections[i]->page=page_t_generate(connections[i]->request);
 #ifdef _DEBUG_
-  char tnm[50];
-  snprintf(tnm,sizeof(tnm)-1,"http-%d.txt",getpid());
-  printf("save http reuest to: %s",tnm);
-  FILE *f=fopen(tnm,"w");
-  if(f){
-	fwrite(connections[i]->request,connections[i]->request_len,1,f);
-	fclose(f);
-  }
-#endif
-  if(connections[i]->page==NULL)
-    connections[i]->rxstat=connections[i]->wxstat=ST_ERROR;
-
-  page=connections[i]->page;
-  if(page->op==2) 
-    connections[i]->file=create_file_session(page->filename,4096);
-#ifdef MODULAS
-  if(page->op==4 && !page->emod)
-    fprintf(stderr,"Oops!\n");
-#endif
-
-  page->ref++;
-
-  connections[i]->rxstat=ST_DONE;
-  FD_CLR(connections[i]->socket,&fdrdset);
-
-  return;
-}
-#endif
-#ifdef _DEBUG_
-
 static void dbg_print_connection_info(int i)
 {
   char *buf=rl_malloc(64);
@@ -519,8 +477,8 @@ static void dbg_print_connection_info(int i)
 
 static void read_connection(int i)
 {
-  int rd;
-  char buf[32];
+  int rd,__i=0;
+  char buf[32],*tt=NULL;
 
   if(connections[i]->rxstat==ST_ERROR || connections[i]->rxstat==ST_TIMEOUT ||
      connections[i]->rxstat==ST_DONE)
@@ -548,14 +506,24 @@ static void read_connection(int i)
     break;
   case CX_PAGE_READ_BODY:
     /*read to modula*/
-    if(!connections[i]->page) /*first time to generate*/
+    if(!connections[i]->page) { /*first time to generate*/
       connections[i]->page=http_session_gen_page(connections[i]->http);
+      i++;
+    }
 #ifdef MODULAS
     if(!rd) {
       connections[i]->rxstat=ST_DONE;
       FD_CLR(connections[i]->socket,&fdrdset);
     }
-    /*TODO: read to modula if possible*/
+    if(connections[i]->page->emod)
+      if(connections[i]->page->emod->modula_session_write!=NULL) {
+	if(__i && (tt=strstr(buf,"\r\n\r\n"))!=NULL) {
+	  tt+=4*(sizeof(char));
+	  connections[i]->page->emod->modula_session_write(connections[i]->page->emod,tt,strlen(tt));
+	  __i--;
+	} else
+	  connections[i]->page->emod->modula_session_write(connections[i]->page->emod,buf,rd);
+      }
 #else
     connections[i]->rxstat=ST_DONE;
     FD_CLR(connections[i]->socket,&fdrdset);
