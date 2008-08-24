@@ -149,6 +149,9 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     ii=dup(sin[1]);
     close(sin[1]);
 
+    /*server name*/
+    setenv("SERVER_NAME","redleafd",1);
+
     /*set working directory*/
     wdlen=d-ht_req->real_path;
     wd=rl_malloc(wdlen+1);
@@ -166,6 +169,7 @@ int cgi_modula_session_open(modula_t *modula,modula_session_t *session,
     if(ht_req->accept_charset)      setenv("Accept-Charset",ht_req->accept_charset,1);
     if(ht_req->referer)      setenv("Referer",ht_req->referer,1);
     if(ht_req->cookie)      setenv("Cookie",ht_req->cookie,1);
+    if(ht_req->get_query)      setenv("GET_STRING",ht_req->get_query,1);
 
     /*ok,now we will parse other env*/
     switch(ht_req->method) {
