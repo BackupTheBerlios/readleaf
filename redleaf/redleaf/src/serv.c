@@ -101,6 +101,8 @@ int main_process(int argc,char **argv)
 {
   char *cnf_value=get_general_value("port");
   int port_n=8080,i;
+  uid_t euser;
+  gid_t egroup;
 
   if(cnf_value) 
     port_n=atoi(cnf_value);
@@ -137,7 +139,37 @@ int main_process(int argc,char **argv)
     load_chld[i].total_conn=0;
   }
 
-  for(i=0;i<=max_connections/2;i++)
+  /*get user/group ids*/
+  if((cnf_value=get_general_value("run_user")))
+    euser=sys_u2id((const char*)cnf_value);
+  else {
+    fprintf(stderr,"ERR: run_user doesn't pointed.\n");
+    shutdown_socket();
+    exit(3);
+  }
+  if((cnf_value=get_general_value("run_group"))) 
+    egroup=sys_g2id((const char*)cnf_value);
+  else {
+    fprintf(stderr,"ERR: run_group doesn't pointed.\n");
+    shutdown_socket();
+    exit(3);
+  }
+
+  /*set effective user/group ids*/
+  if(setegid(egroup)!=0) {
+    fprintf(stderr,"ERR: cannot set effective group id.\n");
+    perror("setgid:");
+    shutdown_socket();
+    exit(3);
+  }
+  if(seteuid(euser)!=0) {
+    fprintf(stderr,"ERR: cannot set effective user id.\n");
+    perror("setuid:");
+    shutdown_socket();
+    exit(3);
+  }
+
+  for(i=0;i<=max_connections/2;i++) 
     chlds[i]=__make_chld(sock,max_connections,i);
 
   /*add signal handling*/

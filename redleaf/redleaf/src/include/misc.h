@@ -23,13 +23,19 @@
 #ifndef __MISC_H__
 #define __MISC_H__
 
+#include <sys/time.h>
+
 /*TODO: add check*/
 void *mmap_file(const char *filename,int *size);
 void munmap_file(void *buf,int size);
 
 char *get_rfc1123date(time_t t);
-
 int norm_slash_uri(char *uri);
+
+/*get uid from user name*/
+uid_t sys_u2id(const char *user);
+/*get gid from group name*/
+gid_t sys_g2id(const char *group);
 
 /*wrappers for memory related functions*/
 void *__rl_malloc(char *file,int line,char *function,size_t size);

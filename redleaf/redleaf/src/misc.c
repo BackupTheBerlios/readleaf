@@ -38,6 +38,9 @@ char *wkday[7]={"Sun","Mon","Tue","Wed","Thu","Fri","Sat"};
 char *month[12]={"Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct",
 		 "Nov","Dec"};
 
+/*static functions prototypes*/
+static int __get_3rdnum_pg(const char *fn,const char *val);
+
 /*TODO: add check*/
 void *mmap_file(const char *filename,int *size)
 {
@@ -93,6 +96,19 @@ int norm_slash_uri(char *uri)
   return 0;
 }
 
+/*get uid from user name*/
+uid_t sys_u2id(const char *user)
+{
+  return (uid_t)__get_3rdnum_pg("/etc/passwd",user);
+}
+
+/*get gid from group name*/
+gid_t sys_g2id(const char *group)
+{
+  return (gid_t)__get_3rdnum_pg("/etc/group",group);
+}
+
+
 void *__rl_malloc(char *file,int line,char *function,size_t size)
 {
   void *v=malloc(size);
@@ -144,4 +160,42 @@ void *__rl_free(char *file,int line,char *function,void *p)
 
   return NULL;
 }
+
+/*static functions implementation*/
+static int __get_3rdnum_pg(const char *fn,const char *val)
+{
+  int fd,i=0,id=-1;
+  char buf[128],*_lck,*__lck,ch;
+
+  if((fd=open(fn,O_RDONLY))<0) {
+    perror("open:");
+    return -1;
+  }
+
+  memset(buf,'\0',128);
+
+  while(read(fd,&ch,sizeof(char))) {
+    buf[i++]=ch;
+    if(ch=='\n' && strlen(buf)>0) { /*end of line reached*/
+      _lck=strchr(buf,':');
+      *_lck='\0';
+      if(!strcmp(buf,val)) { /*yep, found*/
+	*_lck=':';
+	_lck=strchr(_lck+sizeof(char),':');
+	__lck=strchr(_lck+sizeof(char),':');
+	*__lck='\0';
+	_lck+=sizeof(char);
+	id=atoi(_lck);
+	break;
+      } else {
+	i=0; memset(buf,'\0',128);
+      }
+    }    
+  }
+
+  close(fd);
+
+  return id;
+}
+
 
