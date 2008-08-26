@@ -83,6 +83,67 @@ static int __scan_line_expr(char *buf,int n);
 static int read_syn_tree(char *buffer,int size);
 static struct variable *get_section_variables(const char *section,const char *name);
 
+/*general configuration stuff, run only after parser done his job!*/
+int general_host_init(host_config_t *conf)
+{
+  char *value,*_value;
+  char **index;
+  int i=0,a;
+
+  if(!conf)    return -1;
+
+  /*root dir and hostname*/
+  if((value=get_general_value("hostname"))) 
+    conf->host_url=strdup(value);
+  else {
+    fprintf(stderr,"[ERR] Hostname variable isn't set.\n");
+    return -1;
+  }
+  if((value=get_general_value("root_dir"))) 
+    conf->host_root_dir=strdup(value);
+  else {
+    fprintf(stderr,"[ERR] Root directory variable isn't set.\n");
+    return -1;
+  }
+  /*indexes variable*/
+  if((value=get_general_value("index"))) { /*fullfill*/
+    _value=value;
+    while(*_value!='\0') {
+      if(*_value==',') i++;
+      _value+=sizeof(char);
+    }
+    ++i;
+    index=rl_malloc(sizeof(char)*i+1);
+    index[i+1]=NULL; _value=value;
+    for(a=0;a<i;a++) {
+      _value=strchr(value,',');
+      if(!_value) index[a]=strdup(value);
+      else {
+	*_value='\0';
+	index[a]=strdup(value);
+	*_value=',';
+      }
+      value=_value;
+    }
+    conf->index=index;
+  } else conf->index=NULL;
+  /*deal with flags*/
+  conf->flags |= HOST_ALLOW_LISTING;
+  if((value=get_general_value("listing")) && !strcmp((const char*)value,"no")) 
+    conf->flags &= ~HOST_ALLOW_LISTING;
+#ifdef MODULAS
+  conf->flags |= HOST_ALLOW_MODULAS;
+  if((value=get_general_value("allow_modulas")) && !strcmp((const char*)value,"no")) 
+    conf->flags &= ~HOST_ALLOW_MODULAS;
+  conf->flags |= HOST_ALLOW_EXEC;
+  if((value=get_general_value("allow_exec_cgi")) && !strcmp((const char*)value,"no")) 
+    conf->flags &= ~HOST_ALLOW_EXEC;
+#endif
+  
+  return 0;
+}
+
+#ifdef MODULAS
 int conf_walk_modulas(int (*found_hook)(struct variable *array,char *name))
 {
   int i=0;
@@ -95,6 +156,7 @@ int conf_walk_modulas(int (*found_hook)(struct variable *array,char *name))
 
   return 0;
 }
+#endif
 
 char *get_general_value(const char *name)
 {

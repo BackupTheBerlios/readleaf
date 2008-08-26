@@ -23,6 +23,32 @@
 #ifndef __CONF_H__
 #define __CONF_H__
 
+#include <sys/types.h>
+
+#include "../../config.h"
+
+/*configuration structures*/
+
+#define HOST_ALLOW_LISTING  (1 << 0)
+#ifdef MODULAS
+#define HOST_ALLOW_MODULAS  (1 << 1)
+#define HOST_ALLOW_EXEC     (1 << 2)
+#endif
+
+typedef struct __host_config_t { /*config for host*/
+  char *host_url; /*url of host*/
+  char *host_root_dir; /*root dir*/
+  char **index;   /*list of indexing files*/
+  int flags;
+} host_config_t;
+
+typedef struct __runtime_conf_t { /*should be read-only for all*/
+  host_config_t general;
+#ifdef VHOSTS
+  host_config_t **vhosts;
+#endif
+} runtime_conf_t;
+
 /*configuration*/
 
 struct variable {
