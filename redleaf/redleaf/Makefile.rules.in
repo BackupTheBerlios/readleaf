@@ -2,6 +2,7 @@
 DESTDIR = %instdir
 # Features
 MODULAS = %modulas
+VHOSTS = %vhosts
 DEBUG = %debug
 
 

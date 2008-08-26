@@ -13,6 +13,7 @@ help() {
     echo "--help print this help messages"
     echo "Features:"
     echo "--with-modulas=<yes|no> compile modulas (no by default)"
+    echo "--with-vhosts=<yes|no> enable virtual hosts support (no by default)"
     echo "--with-debug=<yes|no> compile with debugging output (no by default)"
     echo "========================================"
     echo "Example:"
@@ -22,6 +23,7 @@ help() {
 DESTDIR="/usr/local/"
 DEBUG="no"
 MODULAS="no"
+VHOSTS="no"
 
 # reading parameters
 loop=0
@@ -32,14 +34,17 @@ while [ $# -ne 0 ]; do
 	    exit 0
 	    ;;
 	--prefix=*)
-	    DESTDIR=`echo $1 | awk -F= {'print $2'}`
-	    ;;
+	DESTDIR=`echo $1 | awk -F= {'print $2'}`
+	;;
 	--with-modulas=*)
-	    MODULAS=`echo $1 | awk -F= {'print $2'}`
-	    ;;
+	MODULAS=`echo $1 | awk -F= {'print $2'}`
+	;;
+	--with-vhosts=*)
+	VHOSTS=`echo $1 | awk -F= {'print $2'}`
+	;;
 	--with-debug=*)
-	    DEBUG=`echo $1 | awk -F= {'print $2'}`
-	    ;;
+	DEBUG=`echo $1 | awk -F= {'print $2'}`
+	;;
     esac
     shift
 done
@@ -47,6 +52,11 @@ done
 if [ $MODULAS != "yes" -a $MODULAS != "no"  ];then
     echo "Unknown value $MODULAS is given, ignoring."
     MODULAS="no"
+fi
+
+if [ $VHOSTS != "yes" -a $VHOSTS != "no"  ];then
+    echo "Unknown value $VHOSTS is given, ignoring."
+    VHOSTS="no"
 fi
 
 if [ $DEBUG != "yes" -a $DEBUG != "no"  ];then
@@ -239,6 +249,8 @@ DESTDIRP=`echo $DESTDIR | sed 's|\/|\\\/|g'`
 sed -i s/%instdir/$DESTDIRP/g Makefile.rules 
 # MODULAS
 sed -i s/%modulas/$MODULAS/g Makefile.rules 
+# VHOSTS
+sed -i s/%vhosts/$VHOSTS/g Makefile.rules 
 # DEBUG
 sed -i s/%debug/$DEBUG/g Makefile.rules
 
@@ -267,6 +279,10 @@ sed -i s/%VSUF/$VSUF/g config.h
 if [ $MODULAS = "yes" ]; then
     echo "#define MODULAS  1" >> config.h
 fi
+# vhosts stuff
+if [ $VHOSTS = "yes" ]; then
+    echo "#define VHOSTS  1" >> config.h
+fi
 # debug stuff
 if [ $DEBUG = "yes" ]; then
     echo "#define __DEBUG  1" >> config.h
@@ -283,5 +299,6 @@ echo "========================================"
 echo "Configured with:"
 echo "Destination directory: $DESTDIR"
 echo "Modulas: $MODULAS"
+echo "Virtual hosts: $VHOSTS"
 echo "Debug: $DEBUG"
 
