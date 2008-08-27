@@ -2,5 +2,6 @@
 # Originally written by Tirra <tirra.newly@gmail.com>
 # (c) ReadLeaf team 2008
 
-LIBALLOC_OBJS=src/liballoc/bbuddy.o src/liballoc/memmap.o src/liballoc/scstr.o
+LIBALLOC_OBJS=src/liballoc/bbuddy.o src/liballoc/memmap.o src/liballoc/scstr.o \
+	src/liballoc/poolpage.o
 

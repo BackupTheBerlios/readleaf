@@ -274,9 +274,6 @@ struct page_t *page_t_generate(struct http_request *ht_req)
 {
   char *req;
   struct page_t *page=NULL;
-#if 0
-  struct http_request *ht_req=parse_http_request(request);
-#endif
   struct stat ystat;
   char *filename=NULL,*tfn=NULL;
   char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
@@ -372,19 +369,7 @@ struct page_t *page_t_generate(struct http_request *ht_req)
     char *date=get_rfc1123date(time(NULL));
     char *mdate=NULL;
     char *head=rl_malloc(sizeof(char)*512);
-    int fd;
-
-    memset(uri,'\0',length);
-    uri=strncpy(uri,req,length-8);
-
-    /*look out for an index*/
-    if(!root_dir) { /*get real requested filename*/
-      tfn=getcwd(tfn,0);
-      tfn=rl_realloc(tfn,strlen(tfn)+strlen(req)+sizeof(char)*2);
-      tfn=strcat(tfn,req);
-    } else {
-      yys=sizeof(char)*(strlen(req)+strlen("/")+strlen(root_dir)+2);
-      tfn=rl_malloc(yys);
+    char *index_files;
       if(strcmp(req,"/")){
 	req+=sizeof(char);
 	snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
@@ -405,16 +390,19 @@ struct page_t *page_t_generate(struct http_request *ht_req)
 	rl_free(date);
 	goto return_and_exit;
       }
-      yys+=strlen("index.html")+2*sizeof(char);
-      chkfile=rl_malloc(yys);
-
-      snprintf(chkfile,yys,"%s%s",tfn,"index.html");
-      if(stat(chkfile,&ystat)==-1) { /*no index*/
-	filename=tfn;
-	rl_free(chkfile);
-      } else {
-	filename=chkfile;
-	rl_free(tfn);
+      /*FIXME: indexing*/
+      if(index_files=get_general_value("index"))  {
+	yys+=strlen("index.html")+2*sizeof(char);
+	chkfile=rl_malloc(yys);
+	
+	snprintf(chkfile,yys,"%s%s",tfn,"index.html");
+	if(stat(chkfile,&ystat)==-1) { /*no index*/
+	  filename=tfn;
+	  rl_free(chkfile);
+	} else {
+	  filename=chkfile;
+	  rl_free(tfn);
+	}
       }
     } else filename=tfn;
     

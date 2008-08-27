@@ -27,6 +27,8 @@
 
 #include "../../config.h"
 
+#include <libdata/usrtc.h>
+
 /*configuration structures*/
 
 #define HOST_ALLOW_LISTING  (1 << 0)
@@ -35,17 +37,26 @@
 #define HOST_ALLOW_EXEC     (1 << 2)
 #endif
 
-typedef struct __host_config_t { /*config for host*/
+/**
+ * host_config_t:
+ * used for locate information about host
+ */
+typedef struct __host_config_t { 
   char *host_url; /*url of host*/
   char *host_root_dir; /*root dir*/
   char **index;   /*list of indexing files*/
   int flags;
 } host_config_t;
 
+/**
+ * runtime_conf_t:
+ * used for operate with configuration data on runtime,
+ * without calling parser trees structures and lists.
+ */
 typedef struct __runtime_conf_t { /*should be read-only for all*/
-  host_config_t general;
+  host_config_t general; /*general settings*/
 #ifdef VHOSTS
-  host_config_t **vhosts;
+  usrtc_t *vhosts; /*search tree for vhosts if enabled*/
 #endif
 } runtime_conf_t;
 

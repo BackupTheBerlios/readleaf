@@ -285,7 +285,7 @@ if [ $VHOSTS = "yes" ]; then
 fi
 # debug stuff
 if [ $DEBUG = "yes" ]; then
-    echo "#define __DEBUG  1" >> config.h
+    echo "#define _DEBUG_  1" >> config.h
 fi
 
 echo " " >> config.h

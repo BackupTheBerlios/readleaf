@@ -169,6 +169,8 @@ int main_process(int argc,char **argv)
     exit(3);
   }
 
+  /*init shared data*/
+
   for(i=0;i<=max_connections/2;i++) 
     chlds[i]=__make_chld(sock,max_connections,i);
 
