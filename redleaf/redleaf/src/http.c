@@ -277,7 +277,7 @@ struct page_t *page_t_generate(struct http_request *ht_req)
   struct stat ystat;
   char *filename=NULL,*tfn=NULL;
   char *root_dir=get_general_value("root_dir"),*chkfile=NULL;
-  int yys=0;
+  int yys=0,fd;
 #ifdef MODULAS
   modula_t *mmod=NULL;
   modula_session_t *emod;
@@ -370,11 +370,12 @@ struct page_t *page_t_generate(struct http_request *ht_req)
     char *mdate=NULL;
     char *head=rl_malloc(sizeof(char)*512);
     char *index_files;
-      if(strcmp(req,"/")){
-	req+=sizeof(char);
-	snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
-      } else tfn=strdup(root_dir);
-    }
+
+    if(strcmp(req,"/")){
+      req+=sizeof(char);
+      snprintf(tfn,yys,"%s%s",root_dir,req); req-=sizeof(char);
+    } else tfn=strdup(root_dir);
+    
     if(stat(tfn,&ystat)==-1) {
       page=create_page_t(uri,NULL,NULL,tfn,OK);
       rl_free(date);
@@ -391,7 +392,7 @@ struct page_t *page_t_generate(struct http_request *ht_req)
 	goto return_and_exit;
       }
       /*FIXME: indexing*/
-      if(index_files=get_general_value("index"))  {
+      if((index_files=get_general_value("index")))  {
 	yys+=strlen("index.html")+2*sizeof(char);
 	chkfile=rl_malloc(yys);
 	
@@ -403,9 +404,8 @@ struct page_t *page_t_generate(struct http_request *ht_req)
 	  filename=chkfile;
 	  rl_free(tfn);
 	}
-      }
-    } else filename=tfn;
-    
+      } else filename=tfn;
+    }
     norm_slash_uri(filename);
     
     page=create_page_t(uri,NULL,NULL,filename,OK);
